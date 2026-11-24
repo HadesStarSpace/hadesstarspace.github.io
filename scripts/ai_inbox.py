@@ -395,8 +395,8 @@ def grid_windows(img, it):
         if x1 - x0 < 6 or y1 - y0 < 6:
             return None
         return img[y0:y1, x0:x1]
-    # 固定窗口（药丸右下方）：尺寸/位置随药丸缩放，跨分辨率一致；再用正方形裁切对齐卡片方框
-    icon = cut(0.58, 1.38, 0.30, 1.75, "y1")
+    # 固定窗口（药丸右下方，留足边距）：尺寸随药丸缩放，跨分辨率一致；再居中裁成正方形贴卡片方框
+    icon = cut(0.40, 1.80, 0.10, 2.30, "y1")
     # 整格预览：从药丸上方一点往下到格底，横向别越到下一格
     card = cut(-0.60, 0.50, -0.30, 9.60, "y0")
     side = "暗"
@@ -407,7 +407,7 @@ def grid_windows(img, it):
     return dict(icon=icon, card=card, side=side)
 
 
-def square_center(bgr, keep=0.85):
+def square_center(bgr, keep=0.95):
     """裁成正方形：卡片上的小方框是正方形、按铺满显示，图不方就会“没对准”"""
     if bgr is None or bgr.size == 0:
         return bgr
