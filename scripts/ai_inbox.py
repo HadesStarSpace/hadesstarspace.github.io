@@ -688,8 +688,10 @@ def main():
             grid = []
         # 两个版式都可能认出一堆东西，挑“读到加成的件数”多的那个（加成=药丸，最容易判对错）
         def score(xs):
-            return (sum(1 for x in xs if x.get("bonus") is not None), len(xs))
-        if grid and score(grid) > score(items):
+            # 先比「等级+加成」都读到的件数，再比读到加成的件数：容器版式靠薄荷色小方块认等级，通常更准
+            return (sum(1 for x in xs if x.get("level") is not None and x.get("bonus") is not None),
+                    sum(1 for x in xs if x.get("bonus") is not None), len(xs))
+        if grid and score(grid) >= score(items):
             items = grid
         for it in items:
             loc = grid_windows(img, it) if it.get("layout") == "grid" else windows(img, it)
