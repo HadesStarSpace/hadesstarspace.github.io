@@ -1,5 +1,5 @@
 {
- "updated": 1795525333,
+ "updated": 1795527439,
  "players": [
   {
    "id": "pmwu5fc4o",
@@ -11,7 +11,56 @@
    "claimed": 1
   }
  ],
- "artifacts": [],
+ "artifacts": [
+  {
+   "id": "amwuqoea60",
+   "owner": "pmwu5fc4o",
+   "type_key": "trade",
+   "level": 11,
+   "bonus": 360,
+   "bp": "光",
+   "note": "",
+   "img": "",
+   "qty": 3,
+   "t": 1795527438
+  },
+  {
+   "id": "amwuqoea62",
+   "owner": "pmwu5fc4o",
+   "type_key": "trade",
+   "level": null,
+   "bonus": 360,
+   "bp": "暗",
+   "note": "",
+   "img": "",
+   "qty": 1,
+   "t": 1795527438
+  },
+  {
+   "id": "amwuqoea64",
+   "owner": "pmwu5fc4o",
+   "type_key": "trade",
+   "level": 11,
+   "bonus": 360,
+   "bp": "暗",
+   "note": "",
+   "img": "",
+   "qty": 2,
+   "t": 1795527438
+  },
+  {
+   "id": "amwuqoea66",
+   "owner": "pmwu5fc4o",
+   "type_key": "trade",
+   "level": 11,
+   "bonus": 360,
+   "bp": "",
+   "note": "",
+   "img": "",
+   "qty": 2,
+   "t": 1795527438
+  }
+ ],
  "needs": [],
  "trades": [],
  "templates": [],
@@ -27,6 +76,12 @@
    "player": "林大头",
    "img": "",
    "note": "清空了自己名下的 3 件条目"
+  },
+  {
+   "t": 1795527439,
+   "player": "林大头",
+   "img": "",
+   "note": "识别入库 8 件（同款已合并）"
   }
  ],
  "catalog": [
