@@ -366,7 +366,7 @@ function renderNotices() {
 
 /* ---------------- AI 识别（上传到仓库 inbox，Actions 里跑深度学习 OCR） ---------------- */
 let pendingSlots = [], pendingBadges = [];
-const aiState = { busy: false, baseline: 0, head: '' };
+const aiState = { busy: false, baseline: 0, baselineN: 0, head: '' };
 
 function fileToB64(file) {
   return new Promise((res, rej) => {
@@ -392,10 +392,10 @@ function aiWait(baseline) {
     tries++;
     try {
       const d = await readData();
-      const n = (d && d.artifacts ? d.artifacts.length : 0);
-      if (n !== baseline) {
+      const n = (d && d.artifacts) ? d.artifacts.reduce((s, x) => s + (x.qty || 1), 0) : 0;
+      if (d && d.updated && d.updated > baseline) {
         await load();
-        const added = n - baseline;
+        const added = n - baselineN;
         $('#upHint').textContent = '';
         toast(added > 0 ? `AI 识别完成：新增 ${added} 条（相同的已合并成 ×N）` : 'AI 识别完成');
         switchTab('mine');
@@ -424,8 +424,10 @@ $('#file').onchange = async e => {
   $('#resultCard').classList.add('hidden');
   $('#upHint').textContent = `正在上传 ${files.length} 张图…`;
   try {
-    const base = (await readData() || { artifacts: [] }).artifacts.length;
+    const pre = await readData() || { artifacts: [], updated: 0 };
+    const base = pre.updated || 0;
     aiState.baseline = base;
+    aiState.baselineN = pre.artifacts.reduce((s, x) => s + (x.qty || 1), 0);
     const head = b64url(ME.name);
     const ts = Math.floor(Date.now() / 1000);
     for (let i = 0; i < files.length; i++) {
