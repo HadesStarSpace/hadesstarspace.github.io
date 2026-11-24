@@ -487,8 +487,21 @@ const REC = (() => {
       return b.w > 1.8 * med || b.w < 0.55 * med;
     });
     const out = best.concat(extra);
-    out.sort((a, b) => a.cy - b.cy || a.cx - b.cx);
-    return out;
+    // 两格粘成一格（高/宽明显不是方形）就按中线劈开
+    const fixed = [];
+    for (const b of out) {
+      if (b.h > 1.35 * b.w) {
+        const hh = b.h / 2;
+        fixed.push({ cx: b.cx, cy: b.cy - hh / 2, w: b.w, h: hh, area: b.area / 2 });
+        fixed.push({ cx: b.cx, cy: b.cy + hh / 2, w: b.w, h: hh, area: b.area / 2 });
+      } else if (b.w > 1.35 * b.h) {
+        const ww = b.w / 2;
+        fixed.push({ cx: b.cx - ww / 2, cy: b.cy, w: ww, h: b.h, area: b.area / 2 });
+        fixed.push({ cx: b.cx + ww / 2, cy: b.cy, w: ww, h: b.h, area: b.area / 2 });
+      } else fixed.push(b);
+    }
+    fixed.sort((a, b) => a.cy - b.cy || a.cx - b.cx);
+    return fixed;
   }
 
   /* 量子图标三种版式几何；逐个试，按“像不像一块牌子”打分挑最好的 */
