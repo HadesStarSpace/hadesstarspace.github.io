@@ -284,80 +284,114 @@ function renderNotices() {
     : '<div class="empty">还没有记录</div>';
 }
 
-/* ---------------- 上传识别 ---------------- */
+/* ---------------- 本地识别（秒级，不走云端） ---------------- */
+let pendingSlots = [], pendingBadges = [];
 $('#pickBtn').onclick = () => $('#file').click();
 $('#file').onchange = async e => {
   const f = e.target.files[0];
   if (!f) return;
   if (!ME) { toast('请先登录'); openAuth(); return; }
-  $('#upHint').textContent = '上传中…';
+  $('#upHint').textContent = '识别中…（首次需加载 OCR 模型约 3 秒）';
+  $('#resultCard').classList.add('hidden');
   try {
-    const dataUrl = await downscale(f, 1240, 0.92);
-    const b64 = dataUrl.split(',')[1];
-    const fn = b64url(ME.name) + '__' + Date.now() + '.jpg';
-    const r = await fetch(API + '/contents/' + pathEnc('inbox/' + fn), {
-      method: 'PUT',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, H),
-      body: JSON.stringify({ message: '上传截图 ' + ME.name, content: b64, branch: GH.branch })
-    });
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      throw new Error(j.message || ('上传失败 ' + r.status));
-    }
-    $('#upHint').textContent = '已上传';
-    startPolling(S.artifacts.length);
+    const t0 = performance.now();
+    const res = await REC.recognize(f, (i, n) => { $('#upHint').textContent = `识别中… ${i + 1}/${n}`; });
+    if (!res.ok) { $('#upHint').textContent = ''; toast(res.note); return; }
+    pendingSlots = res.slots.map(s => ({
+      type_key: s.type_key || '', level: s.level, bonus: s.bonus,
+      side: s.side || '', module: '', status: 'have',
+      plate: s.plate, badge_img: s.badge_img, slot: s.slot
+    }));
+    renderResult();
+    const ms = Math.round(performance.now() - t0);
+    $('#upHint').textContent = `识别完成 ${pendingSlots.length} 件 · ${ms} ms`;
   } catch (err) {
     $('#upHint').textContent = '';
-    toast('上传失败：' + err.message);
+    toast('识别失败：' + err.message);
   } finally {
     $('#file').value = '';
   }
 };
 
-function downscale(file, maxW, quality) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const scale = Math.min(1, maxW / img.width);
-      const c = document.createElement('canvas');
-      c.width = Math.round(img.width * scale);
-      c.height = Math.round(img.height * scale);
-      const ctx = c.getContext('2d');
-      ctx.drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(url);
-      resolve(c.toDataURL('image/jpeg', quality));
+function clearResult() { pendingSlots = []; $('#resultCard').classList.add('hidden'); $('#file').value = ''; }
+
+function renderResult() {
+  $('#resultCard').classList.remove('hidden');
+  $('#resCount').textContent = `共 ${pendingSlots.length} 件`;
+  $('#resHint').textContent = '核对一下再入库：类型按颜色估的，可能有错；等级/加成留空说明没认出来，手动填上即可。';
+  const tOpts = k => ['<option value="">未知</option>'].concat(
+    TYPES.map(t => `<option value="${t.key}" ${t.key === k ? 'selected' : ''}>${t.name}</option>`)).join('');
+  const mOpts = k => ['<option value="">无/未识别</option>'].concat(
+    MODULES.map(m => `<option value="${m[0]}" ${m[0] === k ? 'selected' : ''}>${m[1]}</option>`)).join('');
+  $('#resGrid').innerHTML = pendingSlots.map((s, i) => `
+    <div class="slot">
+      ${s.plate ? `<img class="plate" src="${s.plate}">` : '<div class="empty">无图</div>'}
+      <label class="f">类型</label><select data-i="${i}" data-k="type_key">${tOpts(s.type_key)}</select>
+      <div class="grid2" style="margin-top:4px">
+        <div><label class="f">等级</label><input data-i="${i}" data-k="level" type="number" value="${s.level == null ? '' : s.level}"></div>
+        <div><label class="f">加成%</label><input data-i="${i}" data-k="bonus" type="number" value="${s.bonus == null ? '' : s.bonus}"></div>
+      </div>
+      <label class="f">量子模块</label><select data-i="${i}" data-k="module">${mOpts(s.module)}</select>
+      <div class="grid2" style="margin-top:4px">
+        <div><label class="f">光/暗</label><select data-i="${i}" data-k="side">
+          <option value="" ${!s.side ? 'selected' : ''}>—</option>
+          <option ${s.side === '光' ? 'selected' : ''}>光</option><option ${s.side === '暗' ? 'selected' : ''}>暗</option></select></div>
+        <div><label class="f">状态</label><select data-i="${i}" data-k="status">
+          <option value="have" ${s.status === 'have' ? 'selected' : ''}>自用</option>
+          <option value="list" ${s.status === 'list' ? 'selected' : ''}>可交换</option></select></div>
+      </div>
+    </div>`).join('');
+  $('#resGrid').querySelectorAll('select,input').forEach(el => {
+    el.onchange = () => {
+      const i = +el.dataset.i, k = el.dataset.k;
+      pendingSlots[i][k] = (k === 'level' || k === 'bonus') ? (el.value ? +el.value : null) : el.value;
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('图片读取失败')); };
-    img.src = url;
   });
 }
 
-async function startPolling(baseCount) {
-  if (polling) return;
-  polling = true;
-  $('#queueCard').classList.remove('hidden');
-  const t0 = Date.now();
-  let dots = 0;
-  while (Date.now() - t0 < 180000) {
-    dots = (dots + 1) % 4;
-    const secs = Math.round((Date.now() - t0) / 1000);
-    $('#queueBox').innerHTML = `<div class="queue"><div class="spin"></div>
-      <span>云端识别中${'.'.repeat(dots)}（已等 ${secs}s，一般 30–60 秒）</span></div>`;
-    await sleep(5000);
-    const d = await readData();
-    if (d && d.artifacts.length > baseCount) {
-      polling = false;
-      const added = d.artifacts.length - baseCount;
-      $('#queueBox').innerHTML = `<div style="color:var(--accent)">识别完成，新增 ${added} 件，已放入「我的」</div>`;
-      await load();
-      switchTab('mine');
-      toast(`识别完成，新增 ${added} 件`);
-      return;
-    }
+$('#commitBtn').onclick = async () => {
+  if (!ME) { toast('请先登录'); openAuth(); return; }
+  if (!pendingSlots.length) return;
+  $('#commitBtn').disabled = true;
+  try {
+    const items = pendingSlots.map((s, i) => ({
+      id: 'a' + Date.now().toString(36) + i,
+      owner: ME.id, type_key: s.type_key || '', level: s.level, bonus: s.bonus,
+      module: s.module || '', side: s.side || '', status: s.status || 'have',
+      note: '', img: '', badge_img: s.badge_img || '', sig: '',
+      t: Math.floor(Date.now() / 1000)
+    }));
+    await mutate(d => {
+      d.artifacts = (d.artifacts || []).concat(items);
+      d.notices = (d.notices || []).concat([{
+        t: Math.floor(Date.now() / 1000), player: ME.name, img: '',
+        note: `本地识别入库 ${items.length} 件`
+      }]).slice(-30);
+    }, `入库 ${items.length} 件神器`);
+    toast(`已入库 ${items.length} 件`);
+    clearResult();
+    await load();
+    switchTab('mine');
+  } catch (e) {
+    toast('入库失败：' + e.message);
+  } finally {
+    $('#commitBtn').disabled = false;
   }
-  polling = false;
-  $('#queueBox').innerHTML = '<div class="muted">等待超时。可到仓库 Actions 页查看识别日志；若识别失败会在「识别记录」里写明原因。</div>';
+};
+
+/* 手动添加一件 */
+async function addManual() {
+  if (!ME) { toast('请先登录'); openAuth(); return; }
+  const rec = {
+    id: 'a' + Date.now().toString(36), owner: ME.id, type_key: 'trade', level: null, bonus: null,
+    module: '', side: '', status: 'have', note: '', img: '', badge_img: '', sig: '',
+    t: Math.floor(Date.now() / 1000)
+  };
+  try {
+    await mutate(d => { d.artifacts = (d.artifacts || []).concat([rec]); }, '手动添加神器');
+    await load();
+    openEdit(rec.id);
+  } catch (e) { toast('添加失败：' + e.message); }
 }
 
 /* ---------------- 神器编辑 ---------------- */

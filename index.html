@@ -41,14 +41,19 @@
 <div class="view" id="v-upload">
   <div class="card">
     <h3>上传「文物容器」截图</h3>
-    <div class="muted" style="margin-bottom:10px">在游戏里打开文物容器面板，整屏截图上传。云端自动识别类型、等级、加成、光暗，约 30–60 秒后出现在「我的」里，识别不准可手动改。</div>
+    <div class="muted" style="margin-bottom:10px">在游戏里打开文物容器面板，整屏截图上传。识别在你的浏览器里完成，1–2 秒出结果，核对后入库；类型按颜色估的，认不准可以改。</div>
     <input type="file" id="file" accept="image/*" style="display:none">
     <button class="btn" id="pickBtn">选择截图</button>
     <span class="muted" id="upHint" style="margin-left:8px"></span>
   </div>
-  <div class="card hidden" id="queueCard">
-    <h3>识别进度</h3>
-    <div id="queueBox" class="muted"></div>
+  <div class="card hidden" id="resultCard">
+    <h3>识别结果 <span class="muted" id="resCount"></span></h3>
+    <div class="muted" id="resHint" style="margin-bottom:8px"></div>
+    <div class="grid2" id="resGrid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn" id="commitBtn">确认入库</button>
+      <button class="btn ghost mini" onclick="clearResult()">重新识别</button>
+    </div>
   </div>
   <div class="card">
     <h3>识别记录</h3>
@@ -102,7 +107,7 @@
     <label class="f">备注</label><input id="nNote" placeholder="例如：愿意用 2 件 358 换 1 件 360">
     <div style="margin-top:10px"><button class="btn" onclick="postNeed()">发布需求</button></div>
   </div>
-  <div class="card"><h3>我的神器</h3><div id="mineList"></div></div>
+  <div class="card"><h3>我的神器 <button class="btn ghost mini" onclick="addManual()" style="float:right">+ 手动添加</button></h3><div id="mineList"></div></div>
   <div class="card"><h3>我的需求</h3><div id="myNeedList"></div></div>
 </div>
 </div>
@@ -163,6 +168,8 @@
   </div>
 </dialog>
 
+<script src="tess/tesseract.min.js"></script>
+<script src="recog.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
