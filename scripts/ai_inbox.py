@@ -103,10 +103,12 @@ def read_bonus(img, l):
     if m and bonus_ok(int(m.group(1))):
         return int(m.group(1))
     w = max(10.0, l["x1"] - l["x0"]); h = max(8.0, l["h"])
-    for t in ocr_region(img, l["x0"] - 0.35 * w, l["cy"] - 0.9 * h, l["x1"] + 0.35 * w, l["cy"] + 0.9 * h, scale=3):
-        d2 = digits_only(t["t"])
-        if len(d2) == 3 and bonus_ok(int(d2)):
-            return int(d2)
+    for pad, sc in [(0.35, 3), (0.6, 4), (0.2, 5)]:
+        for t in ocr_region(img, l["x0"] - pad * w, l["cy"] - (0.9 + pad) * h,
+                            l["x1"] + pad * w, l["cy"] + (0.9 + pad) * h, scale=sc):
+            d2 = digits_only(t["t"])
+            if len(d2) == 3 and bonus_ok(int(d2)):
+                return int(d2)
     return None
 
 
@@ -239,11 +241,8 @@ def parse_grid(path, img):
                     break
         src_line = next((l for l in lines if l["x0"] == p["x0"] and l["cy"] == p["cy"]), None)
         bns = read_bonus(img, src_line) if src_line else None
-        if not bonus_ok(bns):
-            continue
-        if lvl is None:
-            continue
-        items.append(dict(type=None, level=lvl, bonus=bns, layout="grid", pill=p))
+        items.append(dict(type=None, level=lvl, bonus=bns if bonus_ok(bns) else None,
+                          layout="grid", pill=p))
     return items
 
 

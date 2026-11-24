@@ -498,9 +498,10 @@ async function cloudRecognize(files) {
   $('#file').value = '';
   const res = await pollResult(batch, t0);
   const secs = ((performance.now() - t0) / 1000).toFixed(1);
-  const items = (res.items || []).filter(it => it.level != null && it.bonus != null)
+  // 认不全也留行：宁可空着让你手填，也别默默少一行
+  const items = (res.items || []).filter(it => it.level != null || it.bonus != null || it.plate)
     .map(it => ({
-      type_key: it.type_key || null, level: it.level, bonus: it.bonus, side: it.side || '暗',
+      type_key: it.type_key || null, level: it.level == null ? null : it.level, bonus: it.bonus == null ? null : it.bonus, side: it.side || '暗',
       sig: it.sig || '', lum: it.lum == null ? null : it.lum,
       plate: it.plate ? IMG_BASE + it.plate : '', badge_img: it.badge_img ? IMG_BASE + it.badge_img : ''
     }));
