@@ -1,5 +1,5 @@
 {
- "updated": 1795492855,
+ "updated": 1795492889,
  "players": [
   {
    "id": "pmwu5fc4o",
@@ -12,21 +12,6 @@
   }
  ],
  "artifacts": [
-  {
-   "id": "a1",
-   "owner": "pmwu5fc4o",
-   "type_key": "support",
-   "level": null,
-   "bonus": null,
-   "module": "",
-   "side": "暗",
-   "status": "have",
-   "note": "",
-   "img": "img/p_61b185d1d728.jpg",
-   "badge_img": "img/b_c4acfdc238e6.jpg",
-   "sig": "7f7a708d866d838f917769938965849691786a938965849691786a928966849590786b92886784948f786c9188688393",
-   "from": "5p6X5aSn5aS0__1795492684444.jpg"
-  },
   {
    "id": "a2",
    "owner": "pmwu5fc4o",
