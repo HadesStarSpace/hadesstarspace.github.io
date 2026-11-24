@@ -41,7 +41,7 @@
 <div class="view" id="v-upload">
   <div class="card">
     <h3>上传「文物容器」截图</h3>
-    <div class="muted" style="margin-bottom:10px">可一次选多张截图，谁传的都行、分辨率也不用管。浏览器里直接跑 AI 文字识别，1~3 秒出结果（首次要下约 25MB 模型，之后就缓存在本机），相同的会自动合并成 ×N。识别期间可以关页面，回来自动看到结果。</div>
+    <div class="muted" style="margin-bottom:10px">可一次选多张截图，谁传的都行、分辨率也不用管。传到云端跑 AI 文字识别，一般 25~45 秒出结果；结果先给你核对，确认后才入库，相同的会自动合并成 ×N。</div>
     <input type="file" id="file" accept="image/*" multiple style="display:none">
     <button class="btn" id="pickBtn">选择截图</button>
     <span class="muted" id="upHint" style="margin-left:8px"></span>
@@ -169,10 +169,10 @@
 </dialog>
 
 <script src="tess/tesseract.min.js"></script>
-<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">识别引擎 v2026.11.24.AID2</div>
+<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">云端 AI 识别 v2026.11.24.CLD</div>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
-<script src="recog.js?v=20261124AID2"></script>
-<script src="ocr_ai.js?v=20261124AID2"></script>
-<script src="app.js?v=20261124AID2"></script>
+<script src="recog.js?v=20261124CLD"></script>
+<script src="ocr_ai.js?v=20261124CLD"></script>
+<script src="app.js?v=20261124CLD"></script>
 </body>
 </html>
