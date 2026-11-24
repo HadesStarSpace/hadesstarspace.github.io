@@ -443,6 +443,19 @@ def square_center(bgr, keep=0.88):
     return bgr[y0:y1, x0:x1]
 
 
+def bp_tone(icon):
+    """量子图纸：方块底色深=暗物质，底色浅=光物质（用中位亮度判定，避开图标本身的深色像素）"""
+    if icon is None or icon.size == 0:
+        return ""
+    g = cv2.cvtColor(icon, cv2.COLOR_BGR2GRAY)
+    med = float(np.median(g))
+    sd = float(g.std())
+    # 有图纸：方块底色几乎纯黑或纯白、且和卡片底色反差明显；空槽裁到的是卡片底色（中灰、低反差）
+    if sd < 45 or (20 <= med <= 240):
+        return ""
+    return "光" if med > 240 else "暗"
+
+
 def lum_of(bgr):
     if bgr is None or bgr.size == 0:
         return None
@@ -490,6 +503,7 @@ def main():
                 "sig": sig, "lum": lum_of(icon),
                 "plate": save_img(loc["card"], "p") if loc and loc.get("card") is not None else "",
                 "badge_img": save_img(icon, "b") if icon is not None else "",
+                "bp": bp_tone(icon),
             })
         os.remove(path)
         print("认出", len(items), "件")

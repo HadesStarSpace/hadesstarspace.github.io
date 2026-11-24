@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>交换站</title>
-<link rel="stylesheet" href="style.css?v=20261125CLDW">
+<link rel="stylesheet" href="style.css?v=20261125CLDX">
 </head>
 <body>
 <div class="wrap">
@@ -97,6 +97,8 @@
   <div class="card">
     <h3>等级 × 颜色对照 <span class="muted" id="catCount" style="font-size:12px"></span></h3>
     <div id="catGrid"></div>
+    <h3 class="sect" style="margin:18px 0 8px;font-size:14px">量子图纸（暗物质 / 光物质）</h3>
+    <div id="bpGrid" class="bpgrid"></div>
   </div>
 </div>
 
@@ -151,6 +153,7 @@
     <div><label class="f">等级</label><input id="eLevel" type="number"></div>
     <div><label class="f">加成 %</label><input id="eBonus" type="number"></div>
   </div>
+  <label class="f">量子图纸</label><select id="eBp"></select>
   <div class="row" style="margin-top:12px;justify-content:flex-end">
     <button class="btn ghost mini" onclick="dlgEdit.close()">取消</button>
     <button class="btn" id="eSave">保存</button>
@@ -182,10 +185,10 @@
 </dialog>
 
 <script src="tess/tesseract.min.js"></script>
-<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">云端 AI 识别 v2026.11.25.CLDW</div>
+<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">云端 AI 识别 v2026.11.25.CLDX</div>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
-<script src="recog.js?v=20261125CLDW"></script>
-<script src="ocr_ai.js?v=20261125CLDW"></script>
-<script src="app.js?v=20261125CLDW"></script>
+<script src="recog.js?v=20261125CLDX"></script>
+<script src="ocr_ai.js?v=20261125CLDX"></script>
+<script src="app.js?v=20261125CLDX"></script>
 </body>
 </html>
