@@ -83,3 +83,7 @@ dialog::backdrop{background:#000a}
 .icondd-item { display:flex; flex-direction:column; align-items:center; gap:3px; padding:5px; background:#132029; border:1px solid #223038; border-radius:8px; color:#9fb3c0; font:inherit; font-size:10px; cursor:pointer; }
 .icondd-item.on { border-color:#4fe3c1; box-shadow:0 0 0 1px #4fe3c133 inset; }
 .icondd-item img { width:26px; height:26px; border-radius:6px; object-fit:cover; display:block; }
+
+/* 核对卡片：神器预览图限高，量子图标铺满小方框 */
+#resGrid .plate { display:block; width:100%; max-height:132px; object-fit:cover; border-radius:8px; background:#0c1419; }
+#resGrid .empty { height:80px; display:grid; place-items:center; border-radius:8px; background:#0c1419; color:#7d93a1; font-size:12px; }

@@ -538,7 +538,8 @@ async function cloudRecognize(files) {
     .map(it => ({
       type_key: it.type_key || null, level: it.level == null ? null : it.level, bonus: it.bonus == null ? null : it.bonus, side: it.side || '暗',
       sig: it.sig || '', lum: it.lum == null ? null : it.lum,
-      plate: it.plate ? IMG_BASE + it.plate : '', badge_img: it.badge_img ? IMG_BASE + it.badge_img : ''
+      plate: it.plate ? IMG_BASE + it.plate : '', badge_img: it.badge_img ? IMG_BASE + it.badge_img : '',
+      badge_present: !!(it.badge_img || it.sig), module: it.module || ''
     }));
   if (!items.length) throw new Error('云端没认出神器');
   return { items, secs };
