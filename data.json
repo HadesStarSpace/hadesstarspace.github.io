@@ -1,5 +1,5 @@
 {
- "updated": 1795507675,
+ "updated": 1795509736,
  "players": [
   {
    "id": "pmwu5fc4o",
@@ -12,22 +12,6 @@
   }
  ],
  "artifacts": [
-  {
-   "id": "a1",
-   "owner": "pmwu5fc4o",
-   "type_key": "trade",
-   "level": 11,
-   "bonus": 360,
-   "module": "ic1",
-   "side": "暗",
-   "status": "have",
-   "note": "",
-   "img": "img/p_1ecef263020c.jpg",
-   "badge_img": "img/b_4a7d255a0796.jpg",
-   "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABABMoKCkMAAAAAAAAAAAAAGfxl5Sd+0AAAAAAAAAAABn/ECwdKSX2BwAAAAAAAABKhDNBMzwrqCMAAAAAAAAATGsiRD01GpclAAAAAAAAAExpJkIrOSOWJQAAAAAAAABOcCxBQjEknCUAAAAAAAAANMcWMSU5Dt4UAAAAAAAAAATUs2RmZNqgAAAAAAAAAABTVp6vr6+MEAAAAAAAAAAAUlFSUlFSeNEcAAAAAAAAAA==",
-   "from": "5p6X5aSn5aS0__1795506964_0.png",
-   "qty": 1
-  },
   {
    "id": "a2",
    "owner": "pmwu5fc4o",
