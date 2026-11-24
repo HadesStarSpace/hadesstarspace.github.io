@@ -72,7 +72,7 @@ dialog::backdrop{background:#000a}
 .iconbar .iconbtn.on { border-color:#4fe3c1; box-shadow:0 0 0 1px #4fe3c133 inset; }
 .iconbar .iconbtn img { display:block; border-radius:5px; }
 .iconcell { background:#0c1419; border:1px solid #24343f; border-radius:8px; padding:0; text-align:center; height:52px; overflow:hidden; display:grid; place-items:center; }
-.iconcell img { display:block; max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; border-radius:6px; }
+.iconcell img { display:block; height:50px; width:auto; max-width:100%; object-fit:contain; border-radius:6px; margin:auto; }
 /* 量子技能图标下拉 */
 .icondd { position:relative; flex:1; min-width:150px; }
 .icondd-btn { width:100%; display:flex; align-items:center; gap:8px; padding:6px 10px; background:#16222a; border:1px solid #24343f; border-radius:8px; color:#dfeaf0; font:inherit; cursor:pointer; }
