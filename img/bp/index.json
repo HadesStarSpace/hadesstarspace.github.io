@@ -60,6 +60,22 @@
       "alts": [
         "img/bp/rocket_light_dim.png"
       ]
+    },
+    {
+      "key": "laser_dark",
+      "name": "暗物质激光",
+      "type": "武器",
+      "tone": "暗",
+      "img": "img/bp/laser_dark.png",
+      "alts": []
+    },
+    {
+      "key": "laser_light",
+      "name": "光物质激光",
+      "type": "武器",
+      "tone": "光",
+      "img": "img/bp/laser_light.png",
+      "alts": []
     }
   ]
 }
