@@ -609,9 +609,18 @@ async function cloudRecognize(files) {
   return { items, secs };
 }
 
+let lastUpFiles = [];
+function escHtml(t) { return String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
 $('#file').onchange = async e => {
   const files = Array.from($('#file').files || []);
   if (!files.length) return;
+  if (!ME) { toast('请先登录'); openAuth(); return; }
+  await runUpload(files);
+};
+
+async function runUpload(files) {
+  if (!files || !files.length) return;
   if (!ME) { toast('请先登录'); openAuth(); return; }
   if (aiState.busy) { toast('上一批还在识别，稍等一下'); return; }
   aiState.busy = true;
@@ -626,25 +635,19 @@ $('#file').onchange = async e => {
     renderResult();
     $('#upHint').textContent = '';
   } catch (err) {
-    console.warn('云端失败，转本地识别', err);
-    try {
-      $('#upHint').textContent = '云端没成功，改用本地识别…';
-      const items = await aiLocalRecognize(files);
-      $('#file').value = '';
-      if (!items.length) throw new Error('没认到条目，换张图试试');
-      pendingSlots = items.map(s => Object.assign({}, s));
-      $('#resHint').textContent = `本地认出 ${items.length} 件。核对无误就点「确认入库」。`;
-      renderResult();
-      $('#upHint').textContent = '';
-    } catch (e2) {
-      $('#upHint').textContent = '';
-      $('#file').value = '';
-      toast('识别失败：' + e2.message);
-    }
+    console.warn('云端识别失败', err);
+    $('#file').value = '';
+    lastUpFiles = files;
+    $('#upHint').innerHTML = `云端识别失败：${escHtml(err.message)} ·
+      <a href="#" id="retryUp" style="color:#7ec8ff">重新识别同一批</a>
+      <span class="muted" style="font-size:11px">（本站只用云端识别，不再走本地模型）</span>`;
+    const rl = $('#retryUp');
+    if (rl) rl.onclick = ev => { ev.preventDefault(); $('#upHint').innerHTML = ''; runUpload(lastUpFiles); };
+    toast('识别失败：' + err.message);
   } finally {
     aiState.busy = false;
   }
-};
+}
 
 function clearResult() { pendingSlots = []; $('#resultCard').classList.add('hidden'); $('#file').value = ''; }
 
