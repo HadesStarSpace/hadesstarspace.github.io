@@ -126,6 +126,7 @@ async function readData() {
 function artKey(a) {
   // 等级/加成没读出来就不合并：宁可多条，也不能把不同等级的合成一条
   if (a.level == null || a.bonus == null) return null;
+  if (!a.type_key) return null;                 // 类型没填就不合并，免得把不同种类并成一条
   return [a.owner, a.type_key || '', a.level, a.bonus,
           a.module || '', a.side || '', a.status || ''].join('|');
 }
@@ -485,22 +486,12 @@ $('#file').onchange = async e => {
     const items = await aiLocalRecognize(files);
     $('#file').value = '';
     if (!items.length) throw new Error('没认到神器，换张图试试');
-    const complete = items.every(s => s.type_key && s.level != null && s.bonus != null && s.sig);
     const secs = ((performance.now() - t0) / 1000).toFixed(1);
-    if (complete) {
-      const res = await commitItems(items);
-      $('#upHint').textContent = '';
-      if (res) {
-        await load();
-        toast(`AI 识别 ${items.length} 件 · ${secs}s${res.added < res.total ? ` · 合并成 ${res.added} 条` : ''}`);
-        switchTab('mine');
-      }
-    } else {
-      pendingSlots = items.map(s => Object.assign({ status: 'have', side: s.side || '暗' }, s));
-      renderResult();
-      $('#resHint').textContent = `AI 认出 ${items.length} 件（${secs}s）。标红的缺项请手动补，核完再入库。`;
-      $('#upHint').textContent = '';
-    }
+    // 一律先给核对卡片：识别错的当场改掉，别直接塞进数据库
+    pendingSlots = items.map(s => Object.assign({ status: 'have', side: s.side || '暗' }, s));
+    $('#resHint').textContent = `AI 认出 ${items.length} 件（${secs}s）。核对一下，缺项手动补，没问题就点「确认入库」。`;
+    renderResult();
+    $('#upHint').textContent = '';
   } catch (err) {
     console.warn('本地 AI 失败，转云端', err);
     await cloudUpload(files);
@@ -539,10 +530,17 @@ function clearResult() { pendingSlots = []; $('#resultCard').classList.add('hidd
 function renderResult() {
   $('#resultCard').classList.remove('hidden');
   $('#resCount').textContent = `共 ${pendingSlots.length} 件`;
-  $('#resHint').textContent = '核对一下再入库：类型按颜色估的，可能有错；等级/加成留空说明没认出来，手动填上即可。';
+  const noType = pendingSlots.filter(s => !s.type_key);
+  const batchBar = noType.length ? `
+    <div class="row" style="margin-bottom:10px;align-items:center;gap:8px">
+      <span class="muted" style="font-size:12px">${noType.length} 件没认出类型（容器截图没有类型文字）</span>
+      <select id="batchType" style="max-width:140px"><option value="">选类型…</option>${TYPES.map(t => `<option value="${t.key}">${t.name}</option>`).join('')}</select>
+      <button class="btn ghost mini" id="batchApply">一次填好</button>
+    </div>` : '';
+  $('#resHint').textContent = noType.length ? '等级/加成已认出；类型请在上面一次选好，再入库。' : '核对无误就点「确认入库」。';
   const tOpts = k => ['<option value="">未知</option>'].concat(
     TYPES.map(t => `<option value="${t.key}" ${t.key === k ? 'selected' : ''}>${t.name}</option>`)).join('');
-  $('#resGrid').innerHTML = pendingSlots.map((s, i) => `
+  $('#resGrid').innerHTML = batchBar + pendingSlots.map((s, i) => `
     <div class="slot">
       ${s.plate ? `<img class="plate" src="${s.plate}">` : '<div class="empty">无图</div>'}
       <label class="f">类型</label><select data-i="${i}" data-k="type_key">${tOpts(s.type_key)}</select>
@@ -561,7 +559,14 @@ function renderResult() {
           <option value="list" ${s.status === 'list' ? 'selected' : ''}>可交换</option></select></div>
       </div>
     </div>`).join('');
-  $('#resGrid').querySelectorAll('select,input').forEach(el => {
+  const ba = $('#batchApply');
+  if (ba) ba.onclick = () => {
+    const v = $('#batchType').value;
+    if (!v) { toast('先选一个类型'); return; }
+    pendingSlots.forEach(x => { if (!x.type_key) x.type_key = v; });
+    renderResult();
+  };
+  $('#resGrid').querySelectorAll('select[data-k],input[data-k]').forEach(el => {
     el.onchange = () => {
       const i = +el.dataset.i, k = el.dataset.k;
       pendingSlots[i][k] = (k === 'level' || k === 'bonus') ? (el.value ? +el.value : null) : el.value;

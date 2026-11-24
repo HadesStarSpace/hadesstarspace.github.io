@@ -40,11 +40,11 @@
   }
 
   /* ---------- 检测：缩放到短边 736、补到 32 的倍数、归一化 ---------- */
-  function detInput(bmp) {
+  function detInput(bmp, maxSide) {
     const w = bmp.width, h = bmp.height;
     let ratio = Math.min(w, h) < LIMIT ? LIMIT / Math.min(w, h) : 1;
-    // 大图别整张怼进去：检测层限到长边 MAX_SIDE，识别仍从原图裁，字不会糊
-    const MAX_SIDE = 1280;
+    // 大图默认限到长边 maxSide（快）；容器版式会再跑一遍全分辨率（准）
+    const MAX_SIDE = maxSide || 1920;
     if (Math.max(w, h) * ratio > MAX_SIDE) ratio = MAX_SIDE / Math.max(w, h);
     let nh = Math.max(32, Math.round(h * ratio)), nw = Math.max(32, Math.round(w * ratio));
     const ph = (32 - (nh % 32)) % 32, pw = (32 - (nw % 32)) % 32;
@@ -73,12 +73,12 @@
       for (let x = 0; x < nw; x++) {
         const i0 = y * nw + x;
         if (!mask[i0] || seen[i0]) continue;
-        let x0 = x, x1 = x, y0 = y, y1 = y, sum = 0, cnt = 0;
+        let x0 = x, x1 = x, y0 = y, y1 = y, sum = 0, cnt = 0, mx = 0;
         stack.length = 0; stack.push(i0); seen[i0] = 1;
         while (stack.length) {
           const p = stack.pop();
           const py = Math.floor(p / nw), px2 = p % nw;
-          sum += prob[p]; cnt++;
+          sum += prob[p]; cnt++; if (prob[p] > mx) mx = prob[p];
           if (px2 < x0) x0 = px2; if (px2 > x1) x1 = px2;
           if (py < y0) y0 = py; if (py > y1) y1 = py;
           if (px2 > 0 && mask[p - 1] && !seen[p - 1]) { seen[p - 1] = 1; stack.push(p - 1); }
@@ -88,7 +88,7 @@
         }
         const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
         if (bw < 6 || bh < 5) continue;
-        const score = sum / Math.max(1, cnt);
+        const score = Math.max(mx, sum / Math.max(1, cnt));
         if (score < BOX_THRESH) continue;
         const d = (bw * bh) * UNCLIP / (2 * (bw + bh));
         out.push({
@@ -136,9 +136,9 @@
     return { text, score: n ? acc / n : 0 };
   }
 
-  async function recognizeBitmap(bmp) {
+  async function recognizeBitmap(bmp, maxSide) {
     await load();
-    const { data, nw, nh, ratio } = detInput(bmp);
+    const { data, nw, nh, ratio } = detInput(bmp, maxSide);
     const feeds = {};
     feeds[det.inputNames[0]] = new ort.Tensor('float32', data, [1, 3, nh, nw]);
     const out = await det.run(feeds);
@@ -160,6 +160,32 @@
     }
     lines.sort((a, b) => (a.y0 - b.y0) || (a.x0 - b.x0));
     return lines;
+  }
+
+  /* 小区域放大后单独认一次：容器版式左下角「11」字号太小，整图检测常常漏 */
+  async function ocrRegion(bmp, x0, y0, x1, y1, scale, binar) {
+    x0 = Math.max(0, Math.round(x0)); y0 = Math.max(0, Math.round(y0));
+    x1 = Math.min(bmp.width, Math.round(x1)); y1 = Math.min(bmp.height, Math.round(y1));
+    if (x1 - x0 < 10 || y1 - y0 < 10) return [];
+    const sc = scale || 3;
+    const c = canvasOf(Math.round((x1 - x0) * sc), Math.round((y1 - y0) * sc));
+    const g = c.getContext('2d');
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(bmp, x0, y0, x1 - x0, y1 - y0, 0, 0, c.width, c.height);
+    if (binar) {
+      // 白字（等级数字在白/薄荷底药丸里）拉成黑字白底，rec 才认得出
+      const d = g.getImageData(0, 0, c.width, c.height);
+      const px = d.data;
+      for (let i = 0; i < px.length; i += 4) {
+        const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+        const v = Math.max(0, Math.min(255, (lum - 135) * 255 / 115));
+        const g2 = 255 - v;
+        px[i] = px[i + 1] = px[i + 2] = g2; px[i + 3] = 255;
+      }
+      g.putImageData(d, 0, 0);
+    }
+    const bmp2 = await createImageBitmap(c);
+    return await recognizeBitmap(bmp2, Math.max(bmp2.width, bmp2.height));
   }
 
   /* ---------- 从行里拼神器条目（规则与服务器端 ai_inbox.py 一致） ---------- */
@@ -187,7 +213,29 @@
       let level = null, bonus = null;
       if (lv) { const m = lv.text.match(/(\d{1,2})/); if (m) level = +m[1]; }
       if (bn) { const m = bn.text.match(/(\d{3})/); if (m) { const v = +m[1]; if (v >= 280 && v <= 420) bonus = v; } }
-      items.push({ type_key: tkey, level, bonus, name: nm, pill: bn });
+      items.push({ type_key: tkey, level, bonus, name: nm, pill: bn, layout: 'list' });
+    }
+    if (items.length) return items;
+    // ---- 文物容器版式：没有「XX神器」字样，只有 +360% 药丸 + 等级数字，按行列配对 ----
+    const pills2 = pills.filter(l => l.x0 > bmp.width * 0.03);
+    if (pills2.length < 2) return items;
+    const nums = lines.filter(l => /^\s*\d{1,2}\s*$/.test(l.text) || /等级\s*\d{1,2}/.test(l.text));
+    const cx = l => (l.x0 + l.x1) / 2, cy = l => (l.y0 + l.y1) / 2;
+    for (const p of pills2) {
+      const pw = p.x1 - p.x0, ph = p.y1 - p.y0;
+      let lv = null;
+      for (const n of nums) {
+        if (n.y0 <= p.y0) continue;
+        if (Math.abs(cx(n) - cx(p)) > 2.0 * pw) continue;
+        if (cy(n) - cy(p) > 8.6 * ph) continue;
+        if (!lv || cy(n) < cy(lv)) lv = n;
+      }
+      let level = null, bonus = null;
+      const mb = p.text.match(/(\d{3})/);
+      if (mb) { const v = +mb[1]; if (v >= 280 && v <= 420) bonus = v; }
+      if (lv) { const m = lv.text.match(/(\d{1,2})/); if (m && +m[1] >= 5 && +m[1] <= 30) level = +m[1]; }
+      if (bonus == null && level == null) continue;
+      items.push({ type_key: null, level, bonus, name: null, pill: p, layout: 'grid' });
     }
     return items;
   }
@@ -208,8 +256,14 @@
     if (pill) {
       const w = pill.x1 - pill.x0, h = pill.y1 - pill.y0;
       const cy = (pill.y0 + pill.y1) / 2;
-      badge = cropCanvas(bmp, pill.x0 + 0.50 * w, cy - 3.2 * h, pill.x0 + 1.70 * w, cy - 0.7 * h, 48);
-      card = cropCanvas(bmp, pill.x0 - 1.10 * w, cy - 3.6 * h, pill.x0 + 1.95 * w, cy + 0.35 * h, 96);
+      if (it.layout === 'grid') {
+        // 容器版式：量子图标在药丸右下方，整块文物在它下面
+        badge = cropCanvas(bmp, pill.x0 + 0.58 * w, pill.y1 + 0.30 * h, pill.x0 + 1.38 * w, pill.y1 + 1.75 * h, 48);
+        card = cropCanvas(bmp, pill.x0 - 0.35 * w, pill.y0 - 0.2 * h, pill.x1 + 0.55 * w, pill.y1 + 7.4 * h, 96);
+      } else {
+        badge = cropCanvas(bmp, pill.x0 + 0.50 * w, cy - 3.2 * h, pill.x0 + 1.70 * w, cy - 0.7 * h, 48);
+        card = cropCanvas(bmp, pill.x0 - 1.10 * w, cy - 3.6 * h, pill.x0 + 1.95 * w, cy + 0.35 * h, 96);
+      }
       if (card) {
         const d = card.getContext('2d').getImageData(0, 0, card.width, card.height).data;
         let bright = 0;
@@ -235,13 +289,24 @@
   async function recognizeFile(file, onProgress) {
     await load();
     const bmp = await createImageBitmap(file);
-    const t0 = performance.now();
     if (onProgress) onProgress('认字…');
-    const lines = await recognizeBitmap(bmp);
+    let lines = await recognizeBitmap(bmp, 1920);
+    let items = parseItems(lines, bmp);
+    // 容器版式：左下角等级字号太小，整图检测常漏 —— 按药丸位置裁小块、二值化后单独认
+    if (items.length && items.every(i => i.layout === 'grid')) {
+      for (const it of items) {
+        if (it.level != null || !it.pill) continue;
+        const p = it.pill, w = p.x1 - p.x0, h = p.y1 - p.y0;
+        const lines2 = await ocrRegion(bmp, p.x0 - 0.55 * w, p.y1 + 4.8 * h, p.x1 + 0.3 * w, p.y1 + 7.4 * h, 3, true);
+        for (const l of lines2) {
+          const m = l.text.match(/(\d{1,2})/);
+          if (m && +m[1] >= 5 && +m[1] <= 30) { it.level = +m[1]; break; }
+        }
+      }
+    }
     if (onProgress) onProgress('拼条目…');
-    const items = parseItems(lines, bmp);
     return items.map(it => Object.assign({}, it, itemVisual(bmp, it), { name: undefined, pill: undefined }));
   }
 
-  window.AIOCR = { load, recognizeFile, recognizeBitmap, _warm: load };
+  window.AIOCR = { load, recognizeFile, recognizeBitmap, ocrRegion, _test: { parseItems }, _warm: load };
 })();
