@@ -562,6 +562,12 @@ const REC = (() => {
     const d = t.getContext('2d').getImageData(0, 0, 32, 32).data;
     const g = new Float32Array(1024);
     for (let i = 0, k = 0; i < 1024; i++, k += 4) g[i] = 0.299 * d[k] + 0.587 * d[k + 1] + 0.114 * d[k + 2];
+    // 先按 5%~95% 分位拉伸对比度：灰底淡图案（同一个图标两次截图亮度不同）也能对上
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < 1024; i++) hist[Math.max(0, Math.min(255, Math.round(g[i])))]++;
+    const pickq = q => { let acc = 0; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= 1024 * q) return v; } return 255; };
+    const lo = pickq(0.05), hi = pickq(0.95), span = Math.max(8, hi - lo);
+    for (let i = 0; i < 1024; i++) g[i] = Math.max(0, Math.min(255, (g[i] - lo) * 255 / span));
     const raw = new Float32Array(256);
     let maxV = 0;
     for (let y = 0; y < 16; y++) {
@@ -599,6 +605,29 @@ const REC = (() => {
     }
     return Math.sqrt(acc / a.length);            // 归一化 RMSE（0~1）
   }
+  /* 允许 ±2 格平移的最佳对齐距离：同一图标两次截图有裁切偏移也能对上 */
+  function sigAlign(a, b) {
+    if (!a || !b || a.length !== b.length || a.length !== 256) return sigDistance(a, b);
+    let best = 9;
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        let acc = 0, n = 0;
+        for (let y = 0; y < 16; y++) {
+          for (let x = 0; x < 16; x++) {
+            const bx = x + dx, by = y + dy;
+            if (bx < 0 || bx > 15 || by < 0 || by > 15) continue;
+            const d = (a[by * 16 + bx] - b[y * 16 + x]) / 255;
+            acc += d * d; n++;
+          }
+        }
+        const v = Math.sqrt(acc / Math.max(1, n));
+        if (v < best) best = v;
+      }
+    }
+    return best;
+  }
+  const ICON_MATCH = 0.13;
+
   function matchModule(sigStr) {
     if (!TEMPLATES || !sigStr) return null;
     const cur = unb64(sigStr);
@@ -606,11 +635,11 @@ const REC = (() => {
     for (const [key, t] of Object.entries(TEMPLATES)) {
       for (const s of (t && t.sigs) || []) {
         let d;
-        try { d = sigDistance(cur, unb64(s)); } catch (e) { continue; }
+        try { d = sigAlign(cur, unb64(s)); } catch (e) { continue; }
         if (!best || d < best.dist) best = { module: key, dist: d, side: t.side || null };
       }
     }
-    return best && best.dist < 0.05 ? best : null;
+    return best && best.dist < ICON_MATCH ? best : null;
   }
 
   async function recognize(file, onProgress) {
@@ -660,5 +689,5 @@ const REC = (() => {
     });
   }
 
-  return { recognize, ensureWorker, setTemplates, matchModule, _unb64: unb64, _test: { findPlates, detectPlates, classify, readBonus, readLevel, readBadge, sigDistance, toHSV } };
+  return { recognize, ensureWorker, setTemplates, matchModule, _unb64: unb64, _test: { findPlates, detectPlates, sigAlign, classify, readBonus, readLevel, readBadge, sigDistance, toHSV } };
 })();

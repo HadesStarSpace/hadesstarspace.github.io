@@ -34,7 +34,7 @@ function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('o
 const typeName = k => (TYPES.find(t => t.key === k) || {}).name || '未知';
 /* ---- 量子强化：只按图标认，不给名字 ---- */
 const iconOf = id => ((S.icons || {})[id]) || null;
-const ICON_DUP = 0.05;                       // 两张截图同一图标的距离上限
+const ICON_DUP = 0.13;                       // 两张截图同一图标的距离上限
 function iconImg(id, size) {
   const ic = iconOf(id);
   if (!ic || !ic.thumb) return '';
@@ -48,7 +48,7 @@ function findIconBySig(d, sig) {
   for (const [id, ic] of Object.entries(d.icons)) {
     if (!ic || !ic.sig) continue;
     let dist;
-    try { dist = REC._test.sigDistance(REC._unb64(ic.sig), REC._unb64(sig)); } catch (e) { continue; }
+    try { dist = REC._test.sigAlign(REC._unb64(ic.sig), REC._unb64(sig)); } catch (e) { continue; }
     if (!best || dist < best.dist) best = { id, dist };
   }
   return best && best.dist < ICON_DUP ? best.id : null;
@@ -118,6 +118,25 @@ async function readData() {
 }
 
 /** 对最新 data.json 应用 fn，带 409 冲突重试 */
+/* 同一持有者、同类型/等级/加成/图标/光暗/状态的，合成一条并记数量 */
+function artKey(a) {
+  return [a.owner, a.type_key || '', a.level == null ? '' : a.level, a.bonus == null ? '' : a.bonus,
+          a.module || '', a.side || '', a.status || ''].join('|');
+}
+function mergeArtifacts(d) {
+  const arts = d.artifacts || [];
+  const by = new Map();
+  const out = [];
+  for (const a of arts) {
+    if (a.status === 'reserved') { out.push(a); continue; }   // 交易中的不合并，避免引用断掉
+    const k = artKey(a);
+    const hit = by.get(k);
+    if (hit) { hit.qty = (hit.qty || 1) + (a.qty || 1); }
+    else { const copy = Object.assign({}, a); copy.qty = a.qty || 1; by.set(k, copy); out.push(copy); }
+  }
+  d.artifacts = out;
+}
+
 async function mutate(fn, msg) {
   let lastErr = null;
   for (let i = 0; i < 4; i++) {
@@ -127,6 +146,7 @@ async function mutate(fn, msg) {
     try { data = JSON.parse(f.text); } catch (e) { throw new Error('data.json 解析失败'); }
     const out = fn(data);
     if (out === false) return null;
+    mergeArtifacts(data);
     data.updated = Math.floor(Date.now() / 1000);
     const r = await fetch(API + '/contents/data.json', {
       method: 'PUT',
@@ -151,7 +171,8 @@ async function load() {
   const d = await readData();
   if (!d) { toast('数据加载失败，请刷新'); return; }
   S = Object.assign({ players: [], artifacts: [], needs: [], trades: [], notices: [], templates: {}, icons: {} }, d);
-  $('#sTotal').textContent = S.artifacts.length;
+  $('#sTotal').textContent = S.artifacts.reduce((n, x) => n + (x.qty || 1), 0)
+    + (S.artifacts.some(x => (x.qty || 1) > 1) ? `（${S.artifacts.length} 种）` : '');
   $('#sList').textContent = S.artifacts.filter(a => a.status === 'list').length;
   $('#sPlayers').textContent = S.players.length;
   const me = S.players.find(p => AUTH && p.id === AUTH.id);
@@ -214,12 +235,13 @@ function artCard(a, opts = {}) {
     ? `<div class="badge ${a.side === '光' ? 'light' : ''}" style="overflow:hidden;padding:0"><img src="${a.badge_img}" style="width:100%;height:100%;object-fit:cover"></div>`
     : (a.module && iconOf(a.module) ? `<div class="badge ${a.side === '光' ? 'light' : ''}" style="overflow:hidden;padding:0">${iconImg(a.module, 34)}</div>` : '');
   const side = a.side ? `<span class="chip ${a.side === '暗' ? 'dark' : ''}">${a.side}</span>` : '';
+  const qty = (a.qty || 1) > 1 ? `<span class="chip hi">×${a.qty}</span>` : '';
   const badgeEl = badgeElx;
   const ownerLine = opts.hideOwner ? '' : `<div class="owner">${playerName(a.owner)}</div>`;
   return `<div class="art">
     <div class="hex">${hexSVG(color, a.level)}${badgeEl}</div>
     <div class="info">
-      <div class="t1">${typeName(a.type_key)} ${lv}${bonus}${side}</div>
+      <div class="t1">${typeName(a.type_key)} ${lv}${bonus}${qty}${side}</div>
       <div class="t2">${mod || '无量子强化'}${a.status === 'reserved' ? ' · 交易中' : ''}</div>
       ${ownerLine}
     </div>
@@ -422,18 +444,24 @@ $('#commitBtn').onclick = async () => {
       id: 'a' + Date.now().toString(36) + i,
       owner: ME.id, type_key: s.type_key || '', level: s.level, bonus: s.bonus,
       module: s.module || '', side: s.side || '', status: s.status || 'have',
-      note: '', img: '', badge_img: s.badge_img || '', sig: s.sig || '',
+      note: '', img: '', badge_img: s.badge_img || '', sig: s.sig || '', qty: 1,
       t: Math.floor(Date.now() / 1000)
     }));
+    let added = 0;
     await mutate(d => {
+      d.artifacts = d.artifacts || [];
       for (const it of items) it.module = it.sig ? ensureIcon(d, it.sig, it.badge_img) : '';
-      d.artifacts = (d.artifacts || []).concat(items);
+      for (const it of items) {
+        const same = d.artifacts.find(a => artKey(a) === artKey(it) && a.status !== 'reserved');
+        if (same) same.qty = (same.qty || 1) + 1;      // 同款：只加数量
+        else { d.artifacts.push(it); added++; }
+      }
       d.notices = (d.notices || []).concat([{
         t: Math.floor(Date.now() / 1000), player: ME.name, img: '',
-        note: `本地识别入库 ${items.length} 件`
+        note: `识别入库 ${items.length} 件（同款已合并）`
       }]).slice(-30);
     }, `入库 ${items.length} 件神器`);
-    toast(`已入库 ${items.length} 件`);
+    toast(`已入库 ${items.length} 件${added < items.length ? `，合并为 ${added} 条` : ''}`);
     clearResult();
     await load();
     switchTab('mine');
@@ -550,7 +578,7 @@ function openTrade(aid) {
     ${dlgArtifact.module ? iconChip(dlgArtifact.module) : ''} ${dlgArtifact.side || ''} · 持有者 ${playerName(dlgArtifact.owner)}`;
   const mine = S.artifacts.filter(a => a.owner === ME.id && a.status !== 'reserved');
   $('#dlgGive').innerHTML = '<option value="">不指定</option>'
-    + mine.map(a => `<option value="${a.id}">${typeName(a.type_key)} ${a.level ? 'Lv' + a.level : ''} ${a.bonus ? '+' + a.bonus + '%' : ''} ${a.module ? '[有量子强化] ' : ''}${a.side || ''}</option>`).join('');
+    + mine.map(a => `<option value="${a.id}">${typeName(a.type_key)} ${a.level ? 'Lv' + a.level : ''} ${a.bonus ? '+' + a.bonus + '%' : ''} ${a.module ? '[有量子强化] ' : ''}${a.side || ''}${(a.qty || 1) > 1 ? ' ×' + a.qty : ''}</option>`).join('');
   $('#dlgMsg').value = '';
   $('#dlgSend').onclick = async () => {
     const give = $('#dlgGive').value || null;
@@ -583,7 +611,10 @@ async function act(id, action) {
         if (art) { art.owner = t.from; art.status = 'have'; }
         if (t.give) {
           const g = d.artifacts.find(a => a.id === t.give);
-          if (g) { g.owner = t.to; g.status = 'have'; }
+          if (g) {
+            if ((g.qty || 1) > 1) g.qty--;              // 同款还有多的，只走一件
+            else { g.owner = t.to; g.status = 'have'; }
+          }
         }
         (d.needs || []).forEach(n => { if (n.player === t.from && n.status === 'open' && !n.type_key) n.status = 'closed'; });
       }
