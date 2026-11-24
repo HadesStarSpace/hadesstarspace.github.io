@@ -204,7 +204,7 @@ async function load() {
     if (!load.prewarmed) { load.prewarmed = true; REC.ensureWorker().catch(() => {}); }  // 提前下模型
   }
   fillSelects();
-  renderMarket(); renderMatch(); renderInbox(); renderMine(); renderNotices();
+  renderMarket(); renderMatch(); renderInbox(); renderMine(); renderNotices(); renderCatalog();
 }
 
 let needIcon = '';
@@ -990,11 +990,32 @@ function logout() {
   load();
 }
 
+/* ---------------- 图鉴 ---------------- */
+const CAT_TYPES = ['运输舰','采矿','战斗','武器','护盾','无人机'];
+const CAT_COLOR = { '运输舰':'黄','采矿':'紫','战斗':'绿','武器':'粉','护盾':'青','无人机':'橙' };
+function renderCatalog() {
+  const list = (S.catalog || []).slice();
+  $('#catCount').textContent = list.length ? ('· 共 ' + list.length + ' 个图标') : '';
+  if (!list.length) { $('#catGrid').innerHTML = '<div class="muted" style="padding:8px">还没有记录</div>'; return; }
+  const iw = IMG_BASE;
+  let h = '<div class="cathead"></div>' + CAT_TYPES.map(t => `<div class="cathead">${t}·${CAT_COLOR[t]}</div>`).join('');
+  for (let lv = 1; lv <= 12; lv++) {
+    h += `<div class="catlv">${lv}</div>`;
+    for (const t of CAT_TYPES) {
+      const it = list.find(x => x.level === lv && x.type === t);
+      h += it ? `<div class="catcell"><img src="${iw}${it.img}" loading="lazy"><i>Lv${lv}</i></div>`
+              : '<div class="catcell empty">—</div>';
+    }
+  }
+  $('#catGrid').innerHTML = `<div class="catgrid">${h}</div>`;
+}
+
 /* ---------------- tabs ---------------- */
 function switchTab(v) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.v === v));
   document.querySelectorAll('.view').forEach(x => x.classList.toggle('hidden', x.id !== 'v-' + v));
   if (v === 'match') renderMatch();
+  if (v === 'catalog') renderCatalog();
 }
 $('#tabs').onclick = e => { const t = e.target.closest('.tab'); if (t) switchTab(t.dataset.v); };
 ['#fType'].forEach(s => document.addEventListener('change', e => { if (e.target.matches(s)) renderMarket(); }));

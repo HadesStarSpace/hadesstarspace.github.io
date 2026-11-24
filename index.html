@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>交换站</title>
-<link rel="stylesheet" href="style.css?v=20261125CLDP">
+<link rel="stylesheet" href="style.css?v=20261125CLDQ">
 </head>
 <body>
 <div class="wrap">
@@ -34,6 +34,7 @@
   <div class="tab" data-v="market">市场</div>
   <div class="tab" data-v="match">匹配</div>
   <div class="tab" data-v="inbox">意向</div>
+  <div class="tab" data-v="catalog">图鉴</div>
   <div class="tab" data-v="mine">我的</div>
 </div>
 
@@ -90,6 +91,14 @@
 <div class="view hidden" id="v-inbox">
   <div class="card"><h3>收到的意向</h3><div id="inList"></div></div>
   <div class="card"><h3>我发出的意向</h3><div id="outList"></div></div>
+</div>
+
+<!-- ========== 图鉴 ========== -->
+<div class="view hidden" id="v-catalog">
+  <div class="card">
+    <h3>等级 × 颜色对照 <span class="muted" id="catCount" style="font-size:12px"></span></h3>
+    <div id="catGrid"></div>
+  </div>
 </div>
 
 <!-- ========== 我的 ========== -->
@@ -180,10 +189,10 @@
 </dialog>
 
 <script src="tess/tesseract.min.js"></script>
-<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">云端 AI 识别 v2026.11.25.CLDP</div>
+<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">云端 AI 识别 v2026.11.25.CLDQ</div>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
-<script src="recog.js?v=20261125CLDP"></script>
-<script src="ocr_ai.js?v=20261125CLDP"></script>
-<script src="app.js?v=20261125CLDP"></script>
+<script src="recog.js?v=20261125CLDQ"></script>
+<script src="ocr_ai.js?v=20261125CLDQ"></script>
+<script src="app.js?v=20261125CLDQ"></script>
 </body>
 </html>
