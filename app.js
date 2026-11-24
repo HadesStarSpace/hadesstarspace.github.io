@@ -120,7 +120,9 @@ async function readData() {
 /** 对最新 data.json 应用 fn，带 409 冲突重试 */
 /* 同一持有者、同类型/等级/加成/图标/光暗/状态的，合成一条并记数量 */
 function artKey(a) {
-  return [a.owner, a.type_key || '', a.level == null ? '' : a.level, a.bonus == null ? '' : a.bonus,
+  // 等级/加成没读出来就不合并：宁可多条，也不能把不同等级的合成一条
+  if (a.level == null || a.bonus == null) return null;
+  return [a.owner, a.type_key || '', a.level, a.bonus,
           a.module || '', a.side || '', a.status || ''].join('|');
 }
 function mergeArtifacts(d) {
@@ -130,6 +132,7 @@ function mergeArtifacts(d) {
   for (const a of arts) {
     if (a.status === 'reserved') { out.push(a); continue; }   // 交易中的不合并，避免引用断掉
     const k = artKey(a);
+    if (!k) { out.push(Object.assign({}, a, { qty: a.qty || 1 })); continue; }
     const hit = by.get(k);
     if (hit) { hit.qty = (hit.qty || 1) + (a.qty || 1); }
     else { const copy = Object.assign({}, a); copy.qty = a.qty || 1; by.set(k, copy); out.push(copy); }

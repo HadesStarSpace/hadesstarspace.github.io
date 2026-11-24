@@ -249,11 +249,17 @@ const REC = (() => {
     const id = g.getImageData(0, 0, c.width, c.height);
     const d = id.data;
     const gray = new Uint8Array(c.width * c.height);
-    for (let i = 0, p = 0; i < gray.length; i++, p += 4) gray[i] = Math.round(0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2]);
-    const thr = mode === 'fixed' ? 215 : otsu(gray);
     for (let i = 0, p = 0; i < gray.length; i++, p += 4) {
-      const v = gray[i] > thr ? 255 : 0;
-      d[p] = d[p + 1] = d[p + 2] = v; d[p + 3] = 255;
+      gray[i] = mode === 'green'
+        ? d[p + 1]
+        : Math.round(0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2]);
+    }
+    if (mode !== 'raw') {
+      const thr = mode === 'fixed' ? 215 : otsu(gray);
+      for (let i = 0, p = 0; i < gray.length; i++, p += 4) {
+        const v = gray[i] > thr ? 255 : 0;
+        d[p] = d[p + 1] = d[p + 2] = v; d[p + 3] = 255;
+      }
     }
     g.putImageData(id, 0, 0);
     return c;
@@ -278,38 +284,238 @@ const REC = (() => {
     return ocrQueue.catch(() => '');
   }
 
+  /* ---------- 数字读法：先定位、再多版本 OCR 共识 ---------- */
+  /** 灰度分位拉伸 + 放大，给 OCR 用（不做二值化，避免细笔画被吃掉） */
+  function stretch(cc, lo, hi, scale) {
+    const g = cc.canvas.getContext('2d');
+    const d = g.getImageData(0, 0, cc.w, cc.h).data;
+    const n = cc.w * cc.h;
+    const gray = new Uint8Array(n);
+    for (let i = 0, p = 0; i < n; i++, p += 4) gray[i] = Math.round(0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2]);
+    const hist = new Float64Array(256);
+    for (let i = 0; i < n; i++) hist[gray[i]]++;
+    const pick = (q) => { const need = n * q / 100; let acc = 0; for (let i = 0; i < 256; i++) { acc += hist[i]; if (acc >= need) return i; } return 255; };
+    const p1 = pick(lo), p2 = pick(hi);
+    const span = Math.max(1, p2 - p1);
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(cc.w * scale)); c.height = Math.max(1, Math.round(cc.h * scale));
+    const cg = c.getContext('2d');
+    const id = cg.createImageData(c.width, c.height);
+    for (let y = 0; y < c.height; y++) {
+      const sy = Math.min(cc.h - 1, Math.floor(y / scale));
+      for (let x = 0; x < c.width; x++) {
+        const sx = Math.min(cc.w - 1, Math.floor(x / scale));
+        const v = Math.max(0, Math.min(255, ((gray[sy * cc.w + sx] - p1) / span) * 255));
+        const k = (y * c.width + x) * 4;
+        id.data[k] = id.data[k + 1] = id.data[k + 2] = v; id.data[k + 3] = 255;
+      }
+    }
+    cg.putImageData(id, 0, 0);
+    // 四周留白，tesseract 对贴边文字很不友好
+    const pad = 14;
+    const out = document.createElement('canvas');
+    out.width = c.width + pad * 2; out.height = c.height + pad * 2;
+    const og = out.getContext('2d');
+    og.fillStyle = '#000'; og.fillRect(0, 0, out.width, out.height);
+    og.drawImage(c, pad, pad);
+    return out;
+  }
+
+  // 每个版本 = [预处理, psm]；灰度拉伸与直接二值化各来几组，互相投票
+  const NUM_VARIANTS = [
+    [(cc) => cc.canvas, 7, 'otsu'],
+    [(cc) => cc.canvas, 8, 'green'],
+    [(cc) => stretch(cc, 2, 98, 6), 8, 'raw'],
+    [(cc) => stretch(cc, 5, 95, 6), 7, 'raw'],
+    [(cc) => stretch(cc, 10, 90, 6), 8, 'raw'],
+    [(cc) => stretch(cc, 2, 98, 3), 7, 'raw'],
+    [(cc) => stretch(cc, 5, 95, 10), 7, 'raw'],
+    [(cc) => stretch(cc, 10, 90, 3), 8, 'raw']
+  ];
+  /** 对一块区域做多版本 OCR，投票选数字；返回 {v, votes, total} 或 null */
+  async function voteNumber(cc, minv, maxv, nDigits) {
+    if (!cc) return null;
+    const tally = {};
+    let total = 0;
+    for (const [mk, psm, mode] of NUM_VARIANTS) {
+      const t = await ocr(mk(cc), psm, '0123456789', mode);
+      const digits = (t.match(/\d+/g) || []).join('');
+      if (!digits) continue;
+      if (nDigits && digits.length !== nDigits) continue;
+      const v = parseInt(digits, 10);
+      if (v < minv || v > maxv) continue;
+      tally[v] = (tally[v] || 0) + 1; total++;
+      if (tally[v] >= 3) break;      // 三家同意就收工，省时间
+    }
+    let best = null, bn = 0;
+    for (const k in tally) if (tally[k] > bn) { bn = tally[k]; best = parseInt(k, 10); }
+    if (!best || bn < 2 || bn < total * 0.5) return null;
+    return { v: best, votes: bn, total };
+  }
+
+  /** 在区域里找“一串数字”文字块：返回 {box, n} */
+  function findDigitRun(img, x0, y0, x1, y1, thr) {
+    const cc = crop(img, x0, y0, x1, y1);
+    if (!cc) return null;
+    const d = cc.canvas.getContext('2d').getImageData(0, 0, cc.w, cc.h).data;
+    const n = cc.w * cc.h;
+    const mask = new Uint8Array(n);
+    for (let i = 0, p = 0; i < n; i++, p += 4) {
+      const g = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
+      mask[i] = g > thr ? 1 : 0;
+    }
+    // 连通域（4 邻域）
+    const lab = new Int32Array(n).fill(-1);
+    const stack = [];
+    const comps = [];
+    for (let start = 0; start < n; start++) {
+      if (!mask[start] || lab[start] >= 0) continue;
+      const id = comps.length;
+      const box = { x0: 1e9, y0: 1e9, x1: -1, y1: -1, n: 0 };
+      stack.push(start); lab[start] = id;
+      while (stack.length) {
+        const p = stack.pop();
+        const x = p % cc.w, y = (p - x) / cc.w;
+        box.n++;
+        if (x < box.x0) box.x0 = x; if (x > box.x1) box.x1 = x;
+        if (y < box.y0) box.y0 = y; if (y > box.y1) box.y1 = y;
+        const nb = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]];
+        for (const [nx, ny] of nb) {
+          if (nx < 0 || ny < 0 || nx >= cc.w || ny >= cc.h) continue;
+          const q = ny * cc.w + nx;
+          if (mask[q] && lab[q] < 0) { lab[q] = id; stack.push(q); }
+        }
+      }
+      comps.push(box);
+    }
+    const glyphs = comps.filter(b => {
+      const w = b.x1 - b.x0 + 1, h = b.y1 - b.y0 + 1;
+      return h >= 13 && h <= 32 && w >= 2 && w <= 46 && b.n >= 12;
+    }).map(b => ({ x: b.x0, y: b.y0, w: b.x1 - b.x0 + 1, h: b.y1 - b.y0 + 1 }));
+    // 按行聚（竖直中心相近）
+    const lines = [];
+    for (const g of glyphs.sort((a, b) => a.y - b.y)) {
+      const line = lines.find(L => Math.abs((L.cy) - (g.y + g.h / 2)) < 9);
+      if (line) { line.items.push(g); line.cy = (line.cy * (line.items.length - 1) + g.y + g.h / 2) / line.items.length; }
+      else lines.push({ cy: g.y + g.h / 2, items: [g] });
+    }
+    // 每行从右往左收窄字（数字），遇到宽字（汉字）停
+    for (const L of lines) {
+      L.items.sort((a, b) => a.x - b.x);
+      const digits = [];
+      for (let i = L.items.length - 1; i >= 0; i--) {
+        const g = L.items[i];
+        if (g.w <= 0.62 * g.h + 1) digits.unshift(g);
+        else if (digits.length) break;
+      }
+      if (digits.length && digits.length <= 2) {
+        const xa = Math.min(...digits.map(g => g.x)) - 1;
+        const xb = Math.max(...digits.map(g => g.x + g.w)) + 1;
+        const ya = Math.min(...digits.map(g => g.y)) - 1;
+        const yb = Math.max(...digits.map(g => g.y + g.h)) + 1;
+        return { box: [cc.x + xa, cc.y + ya, cc.x + xb, cc.y + yb], n: digits.length };
+      }
+    }
+    return null;
+  }
+
   /* ---------- 识别单个槽位 ---------- */
+  /** 在区域里找青绿色药丸底板（列表版式的 +360% 药丸就是这个色） */
+  function findTealPill(img, band, minArea) {
+    const cc = crop(img, band[0], band[1], band[2], band[3]);
+    if (!cc) return null;
+    const d = cc.canvas.getContext('2d').getImageData(0, 0, cc.w, cc.h).data;
+    const n = cc.w * cc.h;
+    const mask = new Uint8Array(n);
+    for (let i = 0, p = 0; i < n; i++, p += 4) {
+      const r = d[p], g = d[p + 1], b = d[p + 2];
+      mask[i] = (g > 72 && g - r > 18 && b > 45 && g - b >= 6 && g < 200) ? 1 : 0;
+    }
+    const lab = new Int32Array(n).fill(-1);
+    const stack = [];
+    let best = null;
+    for (let start = 0; start < n; start++) {
+      if (!mask[start] || lab[start] >= 0) continue;
+      const id = 1;
+      const box = { x0: 1e9, y0: 1e9, x1: -1, y1: -1, n: 0 };
+      stack.push(start); lab[start] = id;
+      while (stack.length) {
+        const p = stack.pop();
+        const x = p % cc.w, y = (p - x) / cc.w;
+        box.n++;
+        if (x < box.x0) box.x0 = x; if (x > box.x1) box.x1 = x;
+        if (y < box.y0) box.y0 = y; if (y > box.y1) box.y1 = y;
+        for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1], [x - 1, y - 1], [x + 1, y - 1], [x - 1, y + 1], [x + 1, y + 1]]) {
+          if (nx < 0 || ny < 0 || nx >= cc.w || ny >= cc.h) continue;
+          const q = ny * cc.w + nx;
+          if (mask[q] && lab[q] < 0) { lab[q] = id; stack.push(q); }
+        }
+      }
+      if (box.n >= (minArea || 2500) && (!best || box.n > best.n)) best = box;
+    }
+    if (!best) return null;
+    return [cc.x + best.x0, cc.y + best.y0, cc.x + best.x1 + 1, cc.y + best.y1 + 1];
+  }
+
   async function readBonus(img, p) {
     const W = p.w, cx = p.cx, cy = p.cy;
-    const main = W > 170
+    const list = W > 170;
+    const main = list
       ? [cx - 0.10 * W, cy - 0.12 * W, cx + 1.05 * W, cy + 0.52 * W]    // 列表面板：药丸在格子右下
       : [cx - 0.80 * W, cy - 1.75 * W, cx + 0.95 * W, cy - 0.90 * W];   // 容器卡片：药丸在格子上方
-    const alt = W > 170
+    const alt = list
       ? [cx - 0.20 * W, cy + 0.50 * W, cx + 0.95 * W, cy + 1.15 * W]
       : [cx - 0.20 * W, cy + 0.60 * W, cx + 0.95 * W, cy + 1.25 * W];
-    // 兜底：药丸贴在格子右下的通版位置
     const lowerRight = [cx - 0.25 * W, cy + 0.05 * W, cx + 1.55 * W, cy + 1.25 * W];
+
+    // 两种版式都先按颜色找青绿药丸底板，只读药丸内部，最稳
+    const searches = list
+      ? [[cx - 0.50 * W, cy - 0.10 * W, cx + 0.80 * W, cy + 0.70 * W],
+         [cx - 0.20 * W, cy + 0.45 * W, cx + 1.00 * W, cy + 1.20 * W]]
+      : [[cx - 0.90 * W, cy - 1.90 * W, cx + 1.00 * W, cy - 0.80 * W],
+         [cx - 0.20 * W, cy + 0.55 * W, cx + 1.00 * W, cy + 1.30 * W]];
+    for (const search of searches) {
+      for (const minArea of [1500, 800]) {
+        const box = findTealPill(img, search, minArea);
+        if (!box) continue;
+        const cc2 = crop(img, box[0] + 2, box[1] + 2, box[2] - 2, box[3] - 2);
+        const got = await voteNumber(cc2, 280, 420, 3);
+        if (got) return got.v;
+      }
+    }
+
     for (const box of [main, alt, lowerRight]) {
       const b = brightestBox(img, box, 900);
       const cc = (b && b[2] / b[3] > 1.4 && b[2] / b[3] < 3.4)
         ? crop(img, b[0] - 3, b[1] - 3, b[0] + b[2] + 3, b[1] + b[3] + 3)
         : crop(img, box[0], box[1], box[2], box[3]);
       if (!cc) continue;
-      const inner = crop(cc.canvas, cc.w * 0.10, cc.h * 0.08, cc.w * 0.92, cc.h * 0.92);
-      if (!inner) continue;
-      for (const [psm, mode] of [[7, 'otsu'], [8, 'fixed']]) {
-        const t = await ocr(inner.canvas, psm, '0123456789+%', mode);
-        const digits = t.replace(/\D/g, '');
-        if (digits.length < 3) continue;
-        const v = parseInt(digits.slice(0, 3), 10);
-        if (v >= 300 && v <= 400) return v;
-      }
+      const got = await voteNumber(cc, 280, 420, 3);
+      if (got) return got.v;
     }
     return null;
   }
 
   async function readLevel(img, p) {
     const W = p.w, cx = p.cx, cy = p.cy;
+
+    // 列表版式（货物/仓库）：等级是文字列里的「等级NN」，先定位小数字再投票
+    if (W > 170) {
+      const zones = [
+        [cx - 2.75 * W, cy - 0.85 * W, cx - 1.70 * W, cy + 0.55 * W],
+        [cx - 3.10 * W, cy - 1.20 * W, cx - 1.70 * W, cy + 0.90 * W]
+      ];
+      for (const z of zones) {
+        for (const thr of [58, 66]) {
+          const run = findDigitRun(img, z[0], z[1], z[2], z[3], thr);
+          if (!run) continue;
+          const got = await voteNumber(crop(img, run.box[0], run.box[1], run.box[2], run.box[3]), 8, 30, run.n);
+          if (got) return got.v;
+        }
+      }
+    }
+
+    // 容器卡片：左下角的大号数字徽标
     const pick = async (band, psms) => {
       const cc = crop(img, band[0], band[1], band[2], band[3]);
       if (!cc) return null;
@@ -320,8 +526,6 @@ const REC = (() => {
       }
       return null;
     };
-
-    if (W > 170) return null;
     const v = await pick([cx - 0.80 * W, cy + 0.86 * W, cx - 0.38 * W, cy + 1.32 * W], [10, 7]);
     if (v != null) return v;
     return await pick([cx - 2.4 * W, cy - 1.05 * W, cx - 0.55 * W, cy - 0.15 * W], [7]);
@@ -689,5 +893,5 @@ const REC = (() => {
     });
   }
 
-  return { recognize, ensureWorker, setTemplates, matchModule, _unb64: unb64, _test: { findPlates, detectPlates, sigAlign, classify, readBonus, readLevel, readBadge, sigDistance, toHSV } };
+  return { recognize, ensureWorker, setTemplates, matchModule, _unb64: unb64, _test: { findPlates, detectPlates, sigAlign, ocr, voteNumber, stretch, findTealPill, findDigitRun, crop, classify, readBonus, readLevel, readBadge, sigDistance, toHSV } };
 })();
