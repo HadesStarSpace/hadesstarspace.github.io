@@ -1,5 +1,5 @@
 {
- "updated": 1795509789,
+ "updated": 1795509830,
  "players": [
   {
    "id": "pmwu5fc4o",
@@ -11,40 +11,7 @@
    "claimed": 1
   }
  ],
- "artifacts": [
-  {
-   "id": "a1",
-   "owner": "pmwu5fc4o",
-   "type_key": "trade",
-   "level": 11,
-   "bonus": 360,
-   "module": "ic1",
-   "side": "暗",
-   "status": "have",
-   "note": "",
-   "img": "img/p_04ae4ac3e7c2.jpg",
-   "badge_img": "img/b_7942bc63bd49.jpg",
-   "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABcpKSkMAAAAAAAAAAAAAITtmJag/z4AAAAAAAAAACr7CyseKCj6BwAAAAAAAABgczNAMjkpqyMAAAAAAAAAYWwiRT81F5olAAAAAAAAAGJsGkIsOSCaJQAAAAAAAABhZzZIQzUmnSUAAAAAAAAASbYcMCU8DuQUAAAAAAAAAAjzpGVnZ+GdAAAAAAAAAABVXam0tLSOEAAAAAAAAAAAVVVVVVVVf9sdAAAAAAAAAA==",
-   "from": "5p6X5aSn5aS0__1795509760_0.png",
-   "qty": 1
-  },
-  {
-   "id": "a2",
-   "owner": "pmwu5fc4o",
-   "type_key": "weapon",
-   "level": 12,
-   "bonus": 360,
-   "module": "ic2",
-   "side": "暗",
-   "status": "have",
-   "note": "",
-   "img": "img/p_d0c6876d45ac.jpg",
-   "badge_img": "img/b_6bf95f8cc602.jpg",
-   "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYy/qKi1sQsAAAAAAAAAAHK4GSctFne6AAAAAAAAAACsKzhSUz4VuwcAAAAAAAAAlxorNig9BKYJAAAAAAAAAJcYCiMqCwCmCQAAAAAAAACaGAAYGQAAqAkAAAAAAAAArDwADyEAD9IEAAAAAAAAAC//a05OWulmAAAAAAAAAABHY5uWlZlvCwAAAAAAAAAAR0dHR0dJe8EUAAAAAAAAAA==",
-   "from": "5p6X5aSn5aS0__1795509760_0.png",
-   "qty": 2
-  }
- ],
+ "artifacts": [],
  "needs": [],
  "trades": [],
  "templates": {},
