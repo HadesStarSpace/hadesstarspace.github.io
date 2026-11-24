@@ -4,7 +4,7 @@
 
 ## 怎么用
 
-1. 打开站点：`https://lindatou1314.github.io/qs-exchange/`
+1. 打开站点：`https://hadesstarspace.github.io/qs-exchange/`
 2. 第一次进去点「登录 / 注册」→「注册新成员」：填**游戏名 + 账号 + 密码**（密码至少 6 位，只用来区分成员身份，别用重要密码）。
    - 名单里已有但还没认领的成员（忆灵 / CannonM / 洋芋 / 龙神天 …），注册时游戏名填自己的名字，就能直接认领原有神器
    - 之后用账号密码登录，身份记在本机 localStorage
