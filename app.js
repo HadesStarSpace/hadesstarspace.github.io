@@ -71,6 +71,26 @@ function bpIcon(a) {
   const rel = (m && m.img) || BP_ICON[a.bp] || BP_ICON['暗'];
   return rel ? IMG_BASE + rel : '';
 }
+/* 量子图纸选择：用图标按钮（原生 select 显示不了图片） */
+function bpChipHtml(v, typeKey) {
+  const list = BP_LIST.filter(b => b.type === typeKey);
+  const all = list.length ? list : BP_LIST;
+  const legacy = (v === '暗' || v === '光') ? [{ key: v, name: bpName(typeKey, v), img: BP_ICON[v] }] : [];
+  const chips = legacy.concat(all).map(b =>
+    `<button type="button" class="bpk${b.key === v ? ' on' : ''}" data-v="${b.key}" title="${b.name}"><img src="${IMG_BASE}${b.img}" alt="${b.name}" loading="lazy"></button>`).join('');
+  return `<div class="bpick"><button type="button" class="bpk bpnone${v ? '' : ' on'}" data-v="" title="无图纸">无</button>${chips}</div>`;
+}
+
+function bindBpPick(box, onPick) {
+  if (!box) return;
+  box.onclick = e => {
+    const b = e.target.closest('.bpk');
+    if (!b || !box.contains(b)) return;
+    box.querySelectorAll('.bpk').forEach(x => x.classList.toggle('on', x === b));
+    onPick(b.dataset.v || '');
+  };
+}
+
 function playerOf(id) { return ((S.players || []).find(p => p.id === id)) || {}; }
 function playerName(id) { const p = playerOf(id); return p.name || '未知'; }
 function contactOf(id) {
@@ -583,18 +603,12 @@ function renderResult() {
   $('#resHint').textContent = noType.length ? '等级/加成已认出；类型请在上面一次选好，再入库。' : '核对无误就点「确认入库」。';
   const tOpts = k => ['<option value="">未知</option>'].concat(
     TYPES.map(t => `<option value="${t.key}" ${t.key === k ? 'selected' : ''}>${t.name}</option>`)).join('');
-  const bpOpts = (v, typeKey) => {
-    const list = BP_LIST.filter(b => b.type === typeKey);
-    const all = list.length ? list : BP_LIST;
-    const legacy = (v === '暗' || v === '光') ? [`<option value="${v}" selected>${bpName(typeKey, v)}（旧）</option>`] : [];
-    return ['<option value="">无</option>'].concat(legacy).concat(all.map(b =>
-      `<option value="${b.key}" ${b.key === v ? 'selected' : ''}>${b.name}</option>`)).join('');
-  };
+  const bpBox = (v, typeKey, i) => `<div class="bpickwrap" data-i="${i}">${bpChipHtml(v, typeKey)}</div>`;
   $('#resGrid').innerHTML = batchBar + pendingSlots.map((s, i) => `
     <div class="slot">
       ${(catIcon(s.level, s.type_key) || s.plate) ? `<img class="plate" src="${catIcon(s.level, s.type_key) || s.plate}">` : '<div class="empty">无图</div>'}
       <label class="f">类型</label><select data-i="${i}" data-k="type_key">${tOpts(s.type_key)}</select>
-      <label class="f">量子图纸</label><select data-i="${i}" data-k="bp">${bpOpts(s.bp, s.type_key)}</select>
+      <label class="f">量子图纸</label>${bpBox(s.bp, s.type_key, i)}
       <div class="grid2" style="margin-top:4px">
         <div><label class="f">等级</label><input data-i="${i}" data-k="level" type="number" value="${s.level == null ? '' : s.level}"></div>
         <div><label class="f">加成%</label><input data-i="${i}" data-k="bonus" type="number" value="${s.bonus == null ? '' : s.bonus}"></div>
@@ -608,6 +622,10 @@ function renderResult() {
     pendingSlots.forEach(x => { if (!x.type_key) x.type_key = v; });
     renderResult();
   };
+  $('#resGrid').querySelectorAll('.bpickwrap').forEach(box => {
+    const i = +box.dataset.i;
+    bindBpPick(box.querySelector('.bpick'), v => { pendingSlots[i].bp = v; });
+  });
   $('#resGrid').querySelectorAll('select[data-k],input[data-k]').forEach(el => {
     el.onchange = () => {
       const i = +el.dataset.i, k = el.dataset.k;
@@ -687,17 +705,16 @@ function openEdit(id) {
   editing = Object.assign({}, S.artifacts.find(a => a.id === id));
   if (!editing) return;
   $('#eType').innerHTML = TYPES.map(t => `<option value="${t.key}" ${t.key === editing.type_key ? 'selected' : ''}>${t.name}</option>`).join('');
-  const eBpOpts = (v, tk) => {
-    const legacy = (v === '暗' || v === '光') ? [`<option value="${v}" selected>${bpName(tk, v)}（旧）</option>`] : [];
-    return ['<option value="">无</option>'].concat(legacy).concat(BP_LIST.map(b =>
-      `<option value="${b.key}" ${b.key === v ? 'selected' : ''}>${b.name}</option>`)).join('');
+  let ebBp = editing.bp || '';
+  const fillEBp = () => {
+    $('#eBp').innerHTML = bpChipHtml(ebBp, $('#eType').value);
+    bindBpPick($('#eBp'), v => { ebBp = v; });
   };
-  $('#eBp').innerHTML = eBpOpts(editing.bp, editing.type_key);
+  fillEBp();
   $('#eLevel').value = editing.level || '';
   $('#eBonus').value = editing.bonus || '';
   $('#eType').onchange = () => {
-    const v = $('#eBp').value;
-    $('#eBp').innerHTML = eBpOpts(v, $('#eType').value);
+    fillEBp();
   };
   $('#eSave').onclick = saveEdit;
   $('#dlgEdit').showModal();
@@ -709,7 +726,7 @@ async function saveEdit() {
     type_key: $('#eType').value,
     level: $('#eLevel').value ? +$('#eLevel').value : null,
     bonus: $('#eBonus').value ? +$('#eBonus').value : null,
-    bp: $('#eBp').value || ''
+    bp: ebBp
   };
   try {
     await mutate(d => {
