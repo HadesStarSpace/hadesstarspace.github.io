@@ -371,8 +371,7 @@ def find_badge(img, x0, y0, x1, y1):
         cand = [b for b in boxes if b[2] * b[3] >= 300]
     if not cand:
         return None
-    # 药丸在左边，量子图标在右边：取最右的方形块，避免把药丸一起框进来
-    bx, by, bw, bh = max(cand, key=lambda b: b[0] + b[2] / 2.0)
+    bx, by, bw, bh = min(cand, key=lambda b: b[1])
     if bw < 10 or bh < 10:
         return None
     pad = int(max(bw, bh) * 0.12) + 3
@@ -396,10 +395,8 @@ def grid_windows(img, it):
         if x1 - x0 < 6 or y1 - y0 < 6:
             return None
         return img[y0:y1, x0:x1]
-    icon = find_badge(img, p["x0"] + 0.30 * w, p["y1"] + 0.02 * h,
-                      p["x0"] + 2.20 * w, p["y1"] + 2.50 * h)
-    if icon is None:
-        icon = cut(0.58, 1.38, 0.30, 1.75, "y1")
+    # 固定窗口（药丸右下方）：尺寸/位置随药丸缩放，跨分辨率一致；再用正方形裁切对齐卡片方框
+    icon = cut(0.58, 1.38, 0.30, 1.75, "y1")
     # 整格预览：从药丸上方一点往下到格底，横向别越到下一格
     card = cut(-0.60, 0.50, -0.30, 9.60, "y0")
     side = "暗"
