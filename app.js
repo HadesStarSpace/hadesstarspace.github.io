@@ -531,7 +531,7 @@ $('#file').onchange = async e => {
     pendingSlots = r.items.slice();
     const grid = r.items.some(s => !s.type_key);
     $('#resHint').textContent = `云端 AI 认出 ${r.items.length} 件（${r.secs}s）。` +
-      (grid ? '容器截图没有类型文字，在上面选一次类型；' : '') + '核对无误就点「确认入库」。';
+      '类型按神器颜色自动判断，图纸看下方小方块；有不对的下拉改一下，核对无误就点「确认入库」。';
     renderResult();
     $('#upHint').textContent = '';
   } catch (err) {

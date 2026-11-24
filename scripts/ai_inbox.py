@@ -502,20 +502,46 @@ def bp_tone(icon):
     return ""
 
 
+def _core_med(bgr):
+    h, w = bgr.shape[:2]
+    side = int(min(h, w) * 0.62)
+    cy, cx = h // 2, w // 2
+    y0 = max(0, cy - side // 2); x0 = max(0, cx - side // 2)
+    core = bgr[y0:y0 + side, x0:x0 + side]
+    if core.size == 0:
+        return None
+    return float(np.median(cv2.cvtColor(core, cv2.COLOR_BGR2GRAY)))
+
+
 def bp_of(img, pill, layout):
-    """量子图纸：在药丸定位点周围小范围扫一遍，结果一致才认，避免裁偏一点就认错"""
+    """量子图纸：在药丸下方整片区域滑动找「黑底/白底方块」，找不到或分不清就不写（宁可空着让人选）
+    黑底方块（暗物质）中心灰度≈3~10，白底（光物质）≈250，卡片底色≈58、灰伞图标≈137 都不算。"""
     if not pill:
         return ""
-    votes = {"暗": 0, "光": 0, "": 0}
-    for dx in (-0.08, -0.04, 0.0, 0.04, 0.08):
-        for dy in (-0.08, -0.04, 0.0, 0.04, 0.08):
-            votes[bp_tone(crop_at(img, pill, layout, dx, dy))] += 1
-    tot = sum(votes.values())
-    if not tot:
+    w = pill["x1"] - pill["x0"]
+    h = pill["h"]
+    x0 = max(0, int(pill["x0"] - 0.6 * w)); x1 = min(img.shape[1], int(pill["x1"] + 0.6 * w))
+    py1 = pill.get("y1", pill.get("cy", 0) + h / 2)
+    y0 = max(0, int(py1)); y1 = min(img.shape[0], int(py1 + 3.2 * h))
+    side = max(14, int(0.5 * w))
+    if x1 - x0 <= side or y1 - y0 <= side:
         return ""
-    for k in ("暗", "光"):
-        if votes[k] >= 0.32 * tot and votes[k] > votes["" ]:
-            return k
+    dark = light = 0
+    stepx = max(1, (x1 - x0 - side) // 8)
+    stepy = max(1, (y1 - y0 - side) // 8)
+    for yy in range(y0, y1 - side, stepy):
+        for xx in range(x0, x1 - side, stepx):
+            m = _core_med(img[yy:yy + side, xx:xx + side])
+            if m is None:
+                continue
+            if m <= 15:
+                dark += 1
+            elif m >= 245:
+                light += 1
+    if dark >= 6 and dark > light:
+        return "暗"
+    if light >= 6 and light > dark:
+        return "光"
     return ""
 
 
@@ -526,12 +552,74 @@ def lum_of(bgr):
     return int(float(g.mean()))
 
 
+# ---------- 颜色认类型（用图鉴 64 个官方图标当参照）----------
+NAME2KEY = {"运输舰": "trade", "采矿": "mining", "战斗": "support",
+            "武器": "weapon", "护盾": "shield", "无人机": "drone"}
+_CAT = []
+
+
+def load_catalog():
+    """把 data.json 里的图鉴图标读成色相签名，用来按颜色反推类型"""
+    global _CAT
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data.json")
+    if not os.path.exists(path):
+        return
+    try:
+        data = json.load(open(path, encoding="utf-8"))
+    except Exception:
+        return
+    for e in data.get("catalog") or []:
+        key = NAME2KEY.get(e.get("type") or "")
+        img = os.path.join(os.path.dirname(path), e.get("img") or "")
+        if not key or not os.path.exists(img):
+            continue
+        bgr = cv2.imread(img)
+        if bgr is None:
+            continue
+        _CAT.append((key, hue_sig(bgr)))
+
+
+def hue_sig(bgr):
+    """色相直方图（按饱和度加权），只统计够亮的彩色像素，避免背景和青色 UI 干扰"""
+    im = cv2.resize(bgr, (32, 32))
+    hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
+    h = hsv[:, :, 0].astype(int).ravel()
+    s = hsv[:, :, 1].astype(int).ravel()
+    v = hsv[:, :, 2].astype(int).ravel()
+    w = (s > 90) & (v > 90)
+    hist = np.bincount((h[w] // 5), weights=(s[w] / 255.0), minlength=36)
+    n = hist.sum()
+    return hist / (n if n else 1)
+
+
+def type_of(card):
+    """神器颜色→类型：与图鉴图标比色相分布，票数不够就留空（宁可空着让人选）"""
+    if card is None or not _CAT:
+        return ""
+    q = hue_sig(card)
+    scores = []
+    for key, sig in _CAT:
+        den = float(np.linalg.norm(q) * np.linalg.norm(sig)) + 1e-9
+        scores.append((float((q * sig).sum() / den), key))
+    scores.sort(reverse=True)
+    top = scores[:6]
+    votes = {}
+    for sc, key in top:
+        votes[key] = votes.get(key, 0) + sc
+    best, pts = max(votes.items(), key=lambda kv: kv[1])
+    total = sum(votes.values())
+    if pts / (total + 1e-9) < 0.45:
+        return ""
+    return best
+
+
 def main():
     files = sorted(f for f in os.listdir(INBOX) if not f.startswith("."))
     if not files:
         print("inbox empty")
         return
     os.makedirs(OUT, exist_ok=True)
+    load_catalog()
     batches = {}
     for fn in files:
         path = os.path.join(INBOX, fn)
@@ -549,19 +637,25 @@ def main():
         except Exception as e:
             print("识别异常", e)
             items = []
-        if not items:
-            try:
-                items = parse_grid(path, img)
-            except Exception as e:
-                print("容器版式异常", e)
-                items = []
+        grid = []
+        try:
+            grid = parse_grid(path, img)
+        except Exception as e:
+            print("容器版式异常", e)
+            grid = []
+        # 两个版式都可能认出一堆东西，挑“读到加成的件数”多的那个（加成=药丸，最容易判对错）
+        def score(xs):
+            return (sum(1 for x in xs if x.get("bonus") is not None), len(xs))
+        if grid and score(grid) > score(items):
+            items = grid
         for it in items:
             loc = grid_windows(img, it) if it.get("layout") == "grid" else windows(img, it)
             icon = loc.get("icon") if loc else None
             icon = square_center(icon) if icon is not None else None
             sig = grad_sig(icon) if icon is not None else ""
             res["items"].append({
-                "type_key": it.get("type"), "level": it.get("level"), "bonus": it.get("bonus"),
+                "type_key": it.get("type") or type_of(loc.get("card") if loc else None),
+                "level": it.get("level"), "bonus": it.get("bonus"),
                 "side": loc.get("side") if loc else "暗",
                 "sig": sig, "lum": lum_of(icon),
                 "plate": save_img(loc["card"], "p") if loc and loc.get("card") is not None else "",
