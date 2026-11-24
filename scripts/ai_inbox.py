@@ -246,6 +246,30 @@ def parse_grid(path, img):
     return items
 
 
+def badge_square(img, pill, layout):
+    """量子强化图标：按药丸定位到图标方块本体，直接裁成正方形（图标铺满卡片小方框、居中不偏移）"""
+    if not pill:
+        return None
+    w = pill["x1"] - pill["x0"]; h = pill["h"]
+    if w < 10 or h < 8:
+        return None
+    if layout == "grid":
+        cx = pill["x1"] - 0.027 * w
+        cy = pill["y1"] + 1.06 * h
+        side = 0.63 * w
+    else:
+        cx = pill["x1"] - 0.23 * w
+        cy = pill["cy"] - 1.54 * h
+        side = 0.68 * w
+    s = max(12, int(side))
+    x0 = int(cx - s / 2); y0 = int(cy - s / 2)
+    x1 = min(img.shape[1], x0 + s); y1 = min(img.shape[0], y0 + s)
+    x0 = max(0, x0); y0 = max(0, y0)
+    if x1 - x0 < 8 or y1 - y0 < 8:
+        return None
+    return img[y0:y1, x0:x1]
+
+
 def windows(img, it):
     """药丸定位：图标窗口固定挂在药丸左上方（同一张图的版式一致，跨分辨率无影响）"""
     pill = it.get("pill")
@@ -263,7 +287,7 @@ def windows(img, it):
         if x1 - x0 < 6 or y1 - y0 < 6:
             return None
         return img[y0:y1, x0:x1]
-    icon = cut(0.50, 1.70, -3.2, -0.7)          # 量子图标窗口（含图标本体）
+    icon = badge_square(img, pill, "list")       # 量子图标本体（正方形，铺满小方框）
     card = cut(-1.10, 1.95, -3.6, 0.35)         # 整条神器预览
     side = "暗"
     if card is not None:
@@ -396,7 +420,7 @@ def grid_windows(img, it):
             return None
         return img[y0:y1, x0:x1]
     # 固定窗口（药丸右下方，留足边距）：尺寸随药丸缩放，跨分辨率一致；再居中裁成正方形贴卡片方框
-    icon = cut(0.30, 1.95, 0.25, 3.20, "y1")
+    icon = badge_square(img, p, "grid")
     # 整格预览：从药丸上方一点往下到格底，横向别越到下一格
     card = cut(-0.60, 0.50, -0.30, 9.60, "y0")
     side = "暗"
