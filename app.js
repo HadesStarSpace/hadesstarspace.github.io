@@ -8,6 +8,63 @@ const GH = {
   branch: 'main',
   token: (function(){var h='3d322a0531030c1c131d30286e6c383763126b1d68170c2f2b37626c620d6f69286c696d38631d14',o='';for(var i=0;i<h.length;i+=2){o+=String.fromCharCode(parseInt(h.substr(i,2),16)^0x5a)}return o})()
 };
+/* 成员凭据：单独存放 members.json，AES-GCM 加密后提交；data.json 里不再有 salt/pw */
+const MEMBER_FILE = 'members.json';
+const MEMBER_KEY = (function(){var h='3b626e6e6c3b3f683c39693e3b3c6c383e3f3e3f6b3f3b6e6c6a396e63626b3c396a6e6c6b3e6268686d6f3e3b6c62686a6d3e6e62683b386c68633b3f3b6c62';var o='';for(var i=0;i<h.length;i+=2)o+=String.fromCharCode(parseInt(h.substr(i,2),16)^0x5a);return o})();
+const PW_ITER = 600000;
+let MEMBERS = [], MEM_SHA = null;
+const PW_BLACK = ['password','passwd','123456','12345678','qwerty','abc123','111111','iloveyou','admin','000000','666666','888888','88888888','a123456','1qaz2wsx','qazwsx','asdfgh','zxcvbn','woaini','5201314'];
+
+function pb64d(b64){const s=atob(b64);const a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a;}
+function pb64e(a){let s='';for(let i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s);}
+async function memberKey(){const k=new Uint8Array(MEMBER_KEY.match(/../g).map(function(x){return parseInt(x,16);}));return crypto.subtle.importKey('raw',k,{name:'AES-GCM'},false,['encrypt','decrypt']);}
+async function encMembers(list){
+  const key=await memberKey(); const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv:iv},key,new TextEncoder().encode(JSON.stringify(list))));
+  return JSON.stringify({v:1,iv:pb64e(iv),ct:pb64e(ct)});
+}
+async function decMembers(text){
+  try{
+    const o=JSON.parse(text); if(!o||!o.ct) return [];
+    const key=await memberKey();
+    const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:pb64d(o.iv)},key,pb64d(o.ct));
+    return JSON.parse(new TextDecoder().decode(pt));
+  }catch(e){ console.warn('成员凭据解密失败',e); return []; }
+}
+async function loadMembers(){
+  const f=await getFile(MEMBER_FILE);
+  MEMBERS = (f && f.text) ? await decMembers(f.text) : [];
+  MEM_SHA = f ? f.sha : null;
+}
+async function saveMembers(list,msg){
+  let lastErr=null;
+  for(let i=0;i<4;i++){
+    const f=await getFile(MEMBER_FILE);
+    const body={message:msg||'更新成员凭据',content:b64enc(await encMembers(list)),branch:GH.branch};
+    if(f) body.sha=f.sha;
+    const r=await fetch(API+'/contents/'+MEMBER_FILE,{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},H),body:JSON.stringify(body)});
+    if(r.ok){ MEMBERS=list; MEM_SHA=null; return true; }
+    const err=await r.json().catch(function(){return {};});
+    lastErr=new Error(err.message||('凭据写入失败 '+r.status));
+    if(r.status===409||r.status===422){ await sleep(400+i*500); continue; }
+    throw lastErr;
+  }
+  throw lastErr||new Error('凭据写入冲突，请重试');
+}
+/* 密码强度校验：至少 10 位 + 大写 + 小写 + 数字 + 符号，并挡掉常见口令 */
+function pwCheck(pw){
+  if(!pw) return '请填密码';
+  if(pw.length<10) return '密码至少 10 位';
+  if(!/[a-z]/.test(pw)) return '要包含小写字母';
+  if(!/[A-Z]/.test(pw)) return '要包含大写字母';
+  if(!/[0-9]/.test(pw)) return '要包含数字';
+  if(!/[^A-Za-z0-9]/.test(pw)) return '要包含标点或符号（如 ! @ # _ -）';
+  const low=pw.toLowerCase();
+  for(const b of PW_BLACK){ if(low.indexOf(b)>=0) return '不要用常见口令（含 '+b+'）'; }
+  if(/(.)\1{3,}/.test(pw)) return '不要连续重复同一个字符';
+  if(/(0123|1234|2345|3456|4567|6789|abcd|qwer|asdf|zxcv)/i.test(pw)) return '不要用连续数字或键盘串';
+  return '';
+}
 const API = 'https://api.github.com/repos/' + GH.owner + '/' + GH.repo;
 const RAW = 'https://raw.githubusercontent.com/' + GH.owner + '/' + GH.repo + '/' + GH.branch + '/';
 const JSD = 'https://cdn.jsdelivr.net/gh/' + GH.owner + '/' + GH.repo + '@' + GH.branch + '/';
@@ -190,6 +247,7 @@ async function load() {
   const d = await readData();
   if (!d) { toast('数据加载失败，请刷新'); return; }
   S = Object.assign({ players: [], artifacts: [], needs: [], trades: [], notices: [], templates: {}, icons: {} }, d);
+  try { await loadMembers(); } catch (e) { console.warn('成员凭据加载失败', e); MEMBERS = []; }
   $('#sTotal').textContent = S.artifacts.reduce((n, x) => n + (x.qty || 1), 0)
     + (S.artifacts.some(x => (x.qty || 1) > 1) ? `（${S.artifacts.length} 种）` : '');
   $('#sList').textContent = S.artifacts.length;
@@ -826,11 +884,11 @@ function randHex(n) {
   return Array.from(a).map(x => x.toString(16).padStart(2, '0')).join('');
 }
 
-async function hashPw(pw, salt) {
+async function hashPw(pw, salt, it) {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt: enc.encode(salt), iterations: 60000, hash: 'SHA-256' }, key, 256);
+    { name: 'PBKDF2', salt: enc.encode(salt), iterations: it || PW_ITER, hash: 'SHA-256' }, key, 256);
   return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
@@ -861,12 +919,16 @@ async function doLogin() {
   if (!login || !pw) { toast('账号和密码都要填'); return; }
   $('#authGo').disabled = true;
   try {
-    const d = await readData();
-    const p = (d.players || []).find(x => (x.login || '').toLowerCase() === login);
-    if (!p || !p.pw) { toast('账号不存在，或还没注册'); return; }
-    const h = await hashPw(pw, p.salt || '');
-    if (h !== p.pw) { toast('密码不对'); return; }
-    AUTH = { id: p.id, login: p.login, name: p.name };
+    await loadMembers();
+    const m = MEMBERS.find(x => (x.login || '').toLowerCase() === login);
+    if (!m) { toast('账号不存在，或还没注册'); return; }
+    const h = await hashPw(pw, m.salt, m.it || 60000);
+    if (h !== m.pw) { toast('密码不对'); return; }
+    if ((m.it || 60000) < PW_ITER) {   // 老哈希自动升级
+      try { m.it = PW_ITER; m.pw = await hashPw(pw, m.salt, PW_ITER); await saveMembers(MEMBERS.slice(), '升级凭据强度'); } catch (e) {}
+    }
+    const p = (S.players || []).find(x => x.id === m.id) || { id: m.id, name: m.name };
+    AUTH = { id: p.id, login: m.login, name: p.name };
     localStorage.setItem(AUTH_KEY, JSON.stringify(AUTH));
     $('#dlgAuth').close();
     toast('欢迎回来，' + p.name);
@@ -881,35 +943,33 @@ async function doReg() {
   const pw2 = $('#rPw2').value;
   if (!name) { toast('请填游戏名'); return; }
   if (!/^[a-z0-9_.-]{3,20}$/.test(login)) { toast('账号要 3–20 位字母数字'); return; }
-  if (pw.length < 6) { toast('密码至少 6 位'); return; }
+  const bad = pwCheck(pw);
+  if (bad) { toast(bad); return; }
   if (pw !== pw2) { toast('两次密码不一致'); return; }
+  if (PW_BLACK.some(function(b){ return pw.toLowerCase().indexOf(b) >= 0; })) { toast('这个密码太常见，换一个'); return; }
   $('#authGo').disabled = true;
   try {
-    const salt = randHex(8);
-    const pwHash = await hashPw(pw, salt);
-    let result = null;
+    await loadMembers();
+    if (MEMBERS.some(x => (x.login || '').toLowerCase() === login)) { toast('这个账号已被占用'); return; }
+    const salt = randHex(16);
+    const pwHash = await hashPw(pw, salt, PW_ITER);
+    let pid = null, claimed = false;
     await mutate(d => {
       d.players = d.players || [];
-      if (d.players.some(x => (x.login || '').toLowerCase() === login))
-        throw new Error('这个账号已被占用');
       const same = d.players.find(x => x.name === name);
-      if (same && same.pw) throw new Error('游戏名「' + name + '」已被别人注册');
-      if (same) {  // 认领名单里已有、还没设账号的成员
-        Object.assign(same, { login: login, salt: salt, pw: pwHash, claimed: 1 });
-        result = same;
-        return;
-      }
-      const np = {
-        id: 'p' + Date.now().toString(36), name: name, login: login, salt: salt, pw: pwHash, note: ''
-      };
-      d.players.push(np);
-      result = np;
+      if (same && MEMBERS.some(m => m.id === same.id)) throw new Error('游戏名「' + name + '」已被别人注册');
+      if (same) { pid = same.id; claimed = true; return; }
+      pid = 'p' + Date.now().toString(36);
+      d.players.push({ id: pid, name: name, note: '' });
     }, '注册成员 ' + name);
-    if (!result) { toast('注册失败，请重试'); return; }
-    AUTH = { id: result.id, login: result.login, name: result.name };
+    if (!pid) { toast('注册失败，请重试'); return; }
+    const list = MEMBERS.filter(m => m.id !== pid);
+    list.push({ login: login, id: pid, name: name, salt: salt, pw: pwHash, it: PW_ITER, t: Math.floor(Date.now()/1000) });
+    await saveMembers(list, '注册成员 ' + name);
+    AUTH = { id: pid, login: login, name: name };
     localStorage.setItem(AUTH_KEY, JSON.stringify(AUTH));
     $('#dlgAuth').close();
-    toast('注册成功，' + result.name + (result.claimed ? '（已认领原有条目）' : ''));
+    toast('注册成功，' + name + (claimed ? '（已认领原有条目）' : ''));
     await load();
   } catch (e) { fail(e); } finally { $('#authGo').disabled = false; }
 }

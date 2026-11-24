@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>交换站</title>
-<link rel="stylesheet" href="style.css?v=20261126CLD9">
+<link rel="stylesheet" href="style.css?v=20261225CLDA">
 </head>
 <body>
 <div class="wrap">
@@ -162,7 +162,7 @@
 
 <dialog id="dlgAuth">
   <h3 style="margin:0 0 4px;font-size:15px" id="authTitle">登录</h3>
-  <div class="muted" style="margin-bottom:10px">用游戏名 + 账号密码进入，别用你在别处用过的密码。</div>
+  <div class="muted" style="margin-bottom:10px">用游戏名 + 账号密码进入。<b style="color:#f0b94a">请不要用你的常用密码或其他网站的密码</b>，本站是公开社区工具，请用一个只在这里用的密码。</div>
   <div class="row" style="gap:6px;margin-bottom:12px">
     <button class="btn mini" id="tabLogin" onclick="authMode('login')">登录</button>
     <button class="btn ghost mini" id="tabReg" onclick="authMode('reg')">注册新成员</button>
@@ -174,8 +174,9 @@
   <div id="regBox" class="hidden">
     <label class="f">游戏名（集团里显示的名字）</label><input id="rName" placeholder="例如 忆灵">
     <label class="f">账号</label><input id="rLogin" autocomplete="username" placeholder="字母数字，登录用">
-    <label class="f">密码</label><input id="rPw" type="password" autocomplete="new-password" placeholder="至少 6 位">
+    <label class="f">密码</label><input id="rPw" type="password" autocomplete="new-password" placeholder="至少 10 位，含大写+小写+数字+符号">
     <label class="f">再输一次密码</label><input id="rPw2" type="password" autocomplete="new-password">
+    <div class="muted" style="margin-top:6px;font-size:11px">要求：至少 10 位，同时包含大写字母、小写字母、数字、符号（如 ! @ # _ -），常见口令会被拒绝。</div>
     <div class="muted" style="margin-top:6px">名字已在名单里的（忆灵 / CannonM / 洋芋 / 龙神天 等），注册时直接填自己的游戏名即可认领原有条目。</div>
   </div>
   <div class="row" style="margin-top:14px;justify-content:flex-end">
@@ -185,10 +186,10 @@
 </dialog>
 
 <script src="tess/tesseract.min.js"></script>
-<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">云端 AI 识别 v2026.11.26.CLD9</div>
+<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">云端 AI 识别 v2026.11.26.CLDA</div>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
-<script src="recog.js?v=20261126CLD9"></script>
-<script src="ocr_ai.js?v=20261126CLD9"></script>
-<script src="app.js?v=20261126CLD9"></script>
+<script src="recog.js?v=20261225CLDA"></script>
+<script src="ocr_ai.js?v=20261225CLDA"></script>
+<script src="app.js?v=20261225CLDA"></script>
 </body>
 </html>
