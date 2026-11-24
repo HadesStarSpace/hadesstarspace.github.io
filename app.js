@@ -246,6 +246,14 @@ function fillSelects() {
   if ($('#fType').options.length < 2) {
     $('#fType').innerHTML = ['<option value="">全部类型</option>'].concat(TYPES.map(t => `<option value="${t.key}">${t.name}</option>`)).join('');
   }
+  const lvSel = $('#fLevel');
+  if (lvSel) {
+    const levels = new Set();
+    (S.artifacts || []).forEach(a => { if (a.level != null) levels.add(a.level); });
+    const cur = lvSel.value;
+    lvSel.innerHTML = '<option value="">全部等级</option>' +
+      [...levels].sort((x, y) => x - y).map(v => `<option value="${v}" ${cur === String(v) ? 'selected' : ''}>Lv${v}</option>`).join('');
+  }
   if ($('#nType').options.length < 1) {
     $('#nType').innerHTML = TYPES.map(t => `<option value="${t.key}">${t.name}</option>`).join('');
   }
@@ -290,11 +298,15 @@ function artCard(a, opts = {}) {
 
 let filterIcon = '';
 function renderMarket() {
-  const t = $('#fType').value, m = filterIcon, sd = $('#fSide').value;
+  const t = $('#fType').value, m = filterIcon;
+  const lv = $('#fLevel') ? $('#fLevel').value : '';
+  const bnEl = $('#fBonus');
+  const bn = bnEl && bnEl.value ? +bnEl.value : null;
   let list = S.artifacts.filter(a => a.status === 'list');
   if (t) list = list.filter(a => a.type_key === t);
   if (m) list = list.filter(a => a.module === m);
-  if (sd) list = list.filter(a => a.side === sd);
+  if (lv) list = list.filter(a => a.level != null && a.level === +lv);
+  if (bn != null) list = list.filter(a => a.bonus != null && a.bonus >= bn);
   $('#marketList').innerHTML = list.length
     ? list.sort((a, b) => (b.level || 0) - (a.level || 0)).map(a =>
       artCard(a, { actions: `<button class="btn mini" onclick="openTrade('${a.id}')">交换</button>` })).join('')
@@ -936,6 +948,7 @@ function switchTab(v) {
   if (v === 'match') renderMatch();
 }
 $('#tabs').onclick = e => { const t = e.target.closest('.tab'); if (t) switchTab(t.dataset.v); };
-['#fType', '#fModule', '#fSide'].forEach(s => document.addEventListener('change', e => { if (e.target.matches(s)) renderMarket(); }));
+['#fType'].forEach(s => document.addEventListener('change', e => { if (e.target.matches(s)) renderMarket(); }));
+['#fLevel', '#fBonus'].forEach(s => document.addEventListener(s === '#fBonus' ? 'input' : 'change', e => { if (e.target.matches(s)) renderMarket(); }));
 
 load();
