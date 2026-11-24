@@ -1,5 +1,5 @@
 {
- "updated": 1795562426,
+ "updated": 1795563500,
  "players": [
   {
    "id": "pmwuwl04b",
@@ -7,7 +7,80 @@
    "note": ""
   }
  ],
- "artifacts": [],
+ "artifacts": [
+  {
+   "id": "amwvc5b6u0",
+   "owner": "pmwuwl04b",
+   "type_key": "mining",
+   "level": 10,
+   "bonus": 360,
+   "bp": "crush_light",
+   "note": "",
+   "img": "",
+   "qty": 1,
+   "t": 1795563499
+  },
+  {
+   "id": "amwvc5b6u1",
+   "owner": "pmwuwl04b",
+   "type_key": "mining",
+   "level": 10,
+   "bonus": 360,
+   "bp": "rocket_dark",
+   "note": "",
+   "img": "",
+   "qty": 1,
+   "t": 1795563499
+  },
+  {
+   "id": "amwvc5b6u2",
+   "owner": "pmwuwl04b",
+   "type_key": "mining",
+   "level": 10,
+   "bonus": 360,
+   "bp": "rocket_light",
+   "note": "",
+   "img": "",
+   "qty": 1,
+   "t": 1795563499
+  },
+  {
+   "id": "amwvc5b6u3",
+   "owner": "pmwuwl04b",
+   "type_key": "mining",
+   "level": 10,
+   "bonus": 360,
+   "bp": "crush_dark",
+   "note": "",
+   "img": "",
+   "qty": 1,
+   "t": 1795563499
+  },
+  {
+   "id": "amwvc5b6u4",
+   "owner": "pmwuwl04b",
+   "type_key": "trade",
+   "level": 10,
+   "bonus": 360,
+   "bp": "trade_light",
+   "note": "",
+   "img": "",
+   "qty": 1,
+   "t": 1795563499
+  },
+  {
+   "id": "amwvc5b6u5",
+   "owner": "pmwuwl04b",
+   "type_key": "trade",
+   "level": 10,
+   "bonus": 360,
+   "bp": "trade_dark",
+   "note": "",
+   "img": "",
+   "qty": 1,
+   "t": 1795563499
+  }
+ ],
  "needs": [],
  "trades": [],
  "templates": [],
@@ -47,6 +120,12 @@
    "player": "林大头",
    "img": "",
    "note": "清空了自己名下的 5 件条目"
+  },
+  {
+   "t": 1795563500,
+   "player": "林大头",
+   "img": "",
+   "note": "识别入库 6 件（同款已合并）"
   }
  ],
  "catalog": [
