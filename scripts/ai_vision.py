@@ -50,8 +50,17 @@ def call(path, model=None, prompt=None):
                                  headers={"Authorization": "Bearer " + token,
                                           "Content-Type": "application/json",
                                           "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=120) as r:
-        data = json.load(r)
+    import urllib.error
+    try:
+        with urllib.request.urlopen(req, timeout=120) as r:
+            status = r.status
+            raw = r.read()
+    except urllib.error.HTTPError as e:
+        status = e.code
+        raw = e.read()
+    print("HTTP", status, "len", len(raw))
+    print(raw[:2000].decode("utf-8", "ignore"))
+    data = json.loads(raw)
     return data["choices"][0]["message"]["content"]
 
 
