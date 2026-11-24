@@ -618,11 +618,13 @@ def load_blueprints():
         print("图纸对照表读不到", e)
         return
     for bp in data.get("blueprints", []):
-        bgr = cv2.imread(os.path.join(HERE, bp.get("img", "")))
-        if bgr is None:
-            print("图纸图标缺失", bp.get("key"), bp.get("img"))
-            continue
-        _BP.append((bp["key"], _norm_tile(bgr)))
+        imgs = [bp.get("img", "")] + list(bp.get("alts") or [])
+        for rel in imgs:
+            bgr = cv2.imread(os.path.join(HERE, rel))
+            if bgr is None:
+                print("图纸图标缺失", bp.get("key"), rel)
+                continue
+            _BP.append((bp["key"], _norm_tile(bgr)))
     print("图纸对照加载", [k for k, _ in _BP])
 
 
@@ -695,6 +697,7 @@ def bp_slide(img, pill):
         return {}
     reg = img[y0:y1, x0:x1]
     agg = {}
+    best = (0.0, 0, 0, 0)
     for s in (int(0.45 * w), int(0.55 * w), int(0.65 * w)):
         if s < 16 or s > min(reg.shape[0], reg.shape[1]):
             continue
@@ -706,6 +709,19 @@ def bp_slide(img, pill):
                     sc = float((q * ref).mean())
                     if sc > agg.get(key, 0.0):
                         agg[key] = sc
+                        if sc > best[0]:
+                            best = (sc, x, y, s)
+    # 精修：粗扫定位到 ±5px 就不错了，但图纸方块只有 50 多像素，差 2~3 像素分数会掉一大截
+    if best[3]:
+        _, bx, by, bs = best
+        for s2 in range(max(16, bs - 3), bs + 4):
+            for yy in range(max(0, by - 3), min(reg.shape[0] - s2, by + 4) + 1):
+                for xx in range(max(0, bx - 3), min(reg.shape[1] - s2, bx + 4) + 1):
+                    q = _stretch64(reg[yy:yy + s2, xx:xx + s2])
+                    for key, ref in _BP:
+                        sc = float((q * ref).mean())
+                        if sc > agg.get(key, 0.0):
+                            agg[key] = sc
     return agg
 
 
@@ -713,7 +729,7 @@ def bp_scan(img, pill, layout=""):
     """两道工序合起来：轮廓法（老逻辑，容器/亮底好用）+ 滑动法（星球列表上的暗图纸）。
     返回 (key, saw)：key 为空但有 saw=True 表示“看到一张图纸但没认准”，前端提示手选。"""
     if not pill or not _BP:
-        return "", False
+        return "", False, []
     scores = {}
     old = bp_match(img, pill, layout) or ""
     if old:
@@ -726,11 +742,14 @@ def bp_scan(img, pill, layout=""):
     second = top[1][1] if len(top) > 1 else 0.0
     saw = best[1] >= BP_SAW
     if old:
-        return old, True
+        return old, True, []
     gap = best[1] - second
-    if best[0] and ((best[1] >= BP_STRETCH and gap >= BP_MARGIN) or (best[1] >= BP_STRETCH_LO and gap >= BP_MARGIN_LO)):
-        return best[0], True
-    return "", saw
+    if best[0] and ((best[1] >= BP_STRETCH and gap >= BP_MARGIN) or (best[1] >= BP_STRETCH_LO and gap >= BP_MARGIN_LO)
+                    or (best[1] >= 0.88 and gap >= 0.08)):
+        return best[0], True, []
+    # 暗版图纸彼此长得很像（都是八边形线条），分数高但拉不开差距时，把前两名丢给前端让你一句话点选
+    sug = [k for k, v in top[:2] if k] if best[1] >= 0.80 else []
+    return "", saw, sug
 
 
 def lum_of(bgr):
@@ -860,7 +879,7 @@ def main():
         cellw = sorted(gaps)[len(gaps) // 2] if gaps else None
         for it in items:
             loc = grid_windows(img, it, cellw) if it.get("layout") == "grid" else windows(img, it)
-            bp_key, bp_saw = bp_scan(img, it.get("pill"), "grid" if it.get("layout") == "grid" else "list")
+            bp_key, bp_saw, bp_sug = bp_scan(img, it.get("pill"), "grid" if it.get("layout") == "grid" else "list")
             bp_dark = bp_pending_tone(img, it.get("pill"))
             icon = loc.get("icon") if loc else None
             icon = square_center(icon) if icon is not None else None
@@ -872,7 +891,7 @@ def main():
                 "sig": sig, "lum": lum_of(icon),
                 "plate": save_img(loc["card"], "p") if loc and loc.get("card") is not None else "",
                 "badge_img": save_img(icon, "b") if icon is not None else "",
-                "bp": bp_key, "bp_saw": bp_saw, "bp_dark_spot": bp_dark,
+                "bp": bp_key, "bp_saw": bp_saw, "bp_dark_spot": bp_dark, "bp_sug": bp_sug,
             })
         os.remove(path)
         print("认出", len(items), "件")

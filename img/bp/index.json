@@ -6,14 +6,20 @@
       "name": "暗物质贸易爆发",
       "type": "运输舰",
       "tone": "暗",
-      "img": "img/bp/trade_dark.png"
+      "img": "img/bp/trade_dark.png",
+      "alts": [
+        "img/bp/trade_dark_dim.png"
+      ]
     },
     {
       "key": "trade_light",
       "name": "光物质贸易爆发",
       "type": "运输舰",
       "tone": "光",
-      "img": "img/bp/trade_light.png"
+      "img": "img/bp/trade_light.png",
+      "alts": [
+        "img/bp/trade_light_dim.png"
+      ]
     },
     {
       "key": "crush_dark",

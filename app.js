@@ -619,7 +619,8 @@ async function cloudRecognize(files) {
       type_key: it.type_key || null, level: it.level == null ? null : it.level, bonus: it.bonus == null ? null : it.bonus, qty: 1,
       sig: it.sig || '', lum: it.lum == null ? null : it.lum, bp: it.bp || '',
       plate: it.plate ? IMG_BASE + it.plate : '',
-      bpSaw: !!it.bp_saw, bpDark: !!it.bp_dark_spot
+      bpSaw: !!it.bp_saw, bpDark: !!it.bp_dark_spot,
+      bpSug: (it.bp_sug || []).filter(Boolean)
     }));
   if (!items.length) throw new Error('云端没认出条目');
   return { items, secs };
@@ -688,7 +689,7 @@ function renderResult() {
     <div class="slot">
       ${(s.plate || catIcon(s.level, s.type_key)) ? `<img class="plate" title="点击查看大图" src="${s.plate || catIcon(s.level, s.type_key)}" onclick="window.open(this.src,'_blank')">` : '<div class="empty">无图</div>'}
       <label class="f">类型</label><select data-i="${i}" data-k="type_key">${tOpts(s.type_key)}</select>
-      <label class="f">量子图纸</label>${bpBox(s.bp, s.type_key, i)}${(!s.bp && s.bpSaw) ? `<div class="bpnb">${s.bpDark ? '方块偏暗，没认准' : '有图纸但没认准'}，请在上面点选</div>` : ''}
+      <label class="f">量子图纸</label>${bpBox(s.bp, s.type_key, i)}${(!s.bp && s.bpSaw) ? `<div class="bpnb">${s.bpSug && s.bpSug.length ? '看着像「' + s.bpSug.map(k => bpName(s.type_key, k)).join('」或「') + '」，点一下选' : (s.bpDark ? '方块偏暗，没认准' : '有图纸但没认准') + '，请在上面点选'}</div>` : ''}
       <div class="grid2" style="margin-top:4px">
         <div><label class="f">等级</label><input data-i="${i}" data-k="level" type="number" value="${s.level == null ? '' : s.level}"></div>
         <div><label class="f">加成%</label><input data-i="${i}" data-k="bonus" type="number" value="${s.bonus == null ? '' : s.bonus}"></div>
