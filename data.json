@@ -1,5 +1,5 @@
 {
- "updated": 1795511835,
+ "updated": 1795511844,
  "players": [
   {
    "id": "pmwu5fc4o",
@@ -12,22 +12,6 @@
   }
  ],
  "artifacts": [
-  {
-   "id": "a2",
-   "owner": "pmwu5fc4o",
-   "type_key": "weapon",
-   "level": 12,
-   "bonus": 360,
-   "module": "ic2",
-   "side": "暗",
-   "status": "have",
-   "note": "",
-   "img": "img/p_533ceb064f03.jpg",
-   "badge_img": "img/b_b4c1212b58a2.jpg",
-   "sig": "MAAAAAAAAAAAAAAAAAAAADAEs8a2t95CAAAAAAAAAAAwiaQCAQEi/w0AAAAAAAAALtIcNWRUIpZIAAAAAAAAACu1FTM1PSxhWwAAAAAAAACMrgg6GjAhW1sAAAAAAAAAuq0AEyg1CFtbAAAAAAAAALCsAAAYGQBbWwAAAAAAAACZrgAAGBgAXlsAAAAAAAAAY8wMACMOAItOAAAAAAAAADegegACAA36FQAAAAAAAAAyDuGrl5jlZQAAAAAAAAAAbVRUbm5uYSQAAAAAAAAAAFZRUVFRUWrRUQAAAAAAAAAPAgICAgIGK88MAAAAAAAAAAAAAAAAAAp6QAAAAAAAAA==",
-   "from": "5p6X5aSn5aS0__1795511759_1.png",
-   "qty": 1
-  },
   {
    "id": "a3",
    "owner": "pmwu5fc4o",
