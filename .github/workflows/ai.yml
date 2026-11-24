@@ -21,12 +21,12 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: deps
-          key: deps-rapidocr-v2
+          key: deps-rapidocr-v4
       - name: 准备识别依赖（命中缓存就跳过 pip）
         run: |
           if [ ! -d deps/rapidocr_onnxruntime ]; then
             python3 -m venv .venv || true
-            python3 -m pip install -q --target deps --no-input rapidocr_onnxruntime opencv-python-headless numpy
+            python3 -m pip install -q --target deps --no-input rapidocr_onnxruntime==1.4.4 opencv-python-headless numpy
           fi
       - name: AI 识别截图并写出结果 inbox_out
         run: PYTHONPATH=deps python3 scripts/ai_inbox.py
