@@ -310,7 +310,7 @@ function renderMine() {
       </select>
       <button class="btn ghost mini" onclick="openEdit('${a.id}')">改</button>
       <button class="btn ghost mini" onclick="delArt('${a.id}')">删</button>`
-  })).join('') : '<div class="empty">还没有条目，去「上传入库」</div>';
+  })).join('') : '<div class="empty">还没有条目，去「上传」</div>';
   const needs = S.needs.filter(n => n.player === ME.id && n.status === 'open');
   $('#myNeedList').innerHTML = needs.length ? needs.map(n => `
     <div class="tcard"><div class="lenflex">
