@@ -45,71 +45,18 @@ function catEntry(level, typeKey) {
   return same.reduce((a, b) => Math.abs(b.level - level) < Math.abs(a.level - level) ? b : a);
 }
 function catIcon(level, typeKey) { const e = catEntry(level, typeKey); return e ? IMG_BASE + e.img : ''; }
-/* ---- 强化图标：只按图标认，不给名字 ---- */
-const iconOf = id => ((S.icons || {})[id]) || null;
-const ICON_DUP = 0.13;                       // 模板比对距离上限
-const ICON_SOFT = 0.18;                      // 配合亮度校验后的放宽阈值
-function iconImg(id, size) {
-  const ic = iconOf(id);
-  if (!ic || !ic.thumb) return '';
-  const s2 = size || 18;
-  return `<img src="${ic.thumb}" style="height:${s2}px;width:${s2}px;object-fit:cover;border-radius:4px;vertical-align:-${Math.round(s2 * 0.2)}px">`;
-}
-function iconChip(id) { return id ? `<span class="chip" title="强化图标">${iconImg(id, 14)}</span>` : ''; }
-function findIconBySig(d, sig, lum, type) {
-  if (!sig || !d.icons) return null;
-  let best = null;
-  for (const [id, ic] of Object.entries(d.icons)) {
-    if (!ic || !ic.sig) continue;
-    if (ic.type && type && ic.type !== type) continue;   // 不同种类的条目图标不混用
-    let dist;
-    try { dist = REC._test.sigAlign(REC._unb64(ic.sig), REC._unb64(sig)); } catch (e) { continue; }
-    // 亮度再卡一道：同图标两次截图亮度一致，不同图标（灰 vs 深色）亮度差得开
-    if (ic.lum != null && lum != null && Math.abs(ic.lum - lum) > 12) continue;
-    if (!best || dist < best.dist) best = { id, dist };
-  }
-  return best && best.dist < ICON_SOFT ? best.id : null;
-}
-function ensureIcon(d, sig, thumb, lum, type) {
-  d.icons = d.icons || {};
-  let id = findIconBySig(d, sig, lum, type);
-  if (!id) {
-    id = 'ic' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
-    d.icons[id] = { sig, thumb: thumb || '', lum: lum == null ? null : lum, type: type || '', n: 0, t: Math.floor(Date.now() / 1000) };
-  } else if (thumb && !d.icons[id].thumb) d.icons[id].thumb = thumb;
-  d.icons[id].n = (d.icons[id].n || 0) + 1;
-  return id;
-}
-function iconBarHTML(selected, allLabel) {
-  const ids = Object.keys(S.icons || {});
-  const btn = (v, inner) => `<button class="iconbtn ${selected === v ? 'on' : ''}" data-icon="${v}">${inner}</button>`;
-  return btn('', `<span style="font-size:12px">${allLabel}</span>`)
-    + ids.map(id => btn(id, iconImg(id, 26))).join('');
-}
-function bindIconBar(el, onPick) {
-  el.querySelectorAll('.iconbtn').forEach(b => {
-    b.onclick = () => {
-      el.querySelectorAll('.iconbtn').forEach(x => x.classList.remove('on'));
-      b.classList.add('on');
-      onPick(b.dataset.icon || '');
-    };
-  });
-}
-const playerName = id => (S.players.find(p => p.id === id) || {}).name || '?';
-const playerOf = id => S.players.find(p => p.id === id) || {};
+function playerOf(id) { return ((S.players || []).find(p => p.id === id)) || {}; }
+function playerName(id) { const p = playerOf(id); return p.name || '未知'; }
 function contactOf(id) {
   const c = playerOf(id).contact || {};
   return [c.qq ? 'QQ ' + c.qq : '', c.discord ? 'Discord ' + c.discord : '', c.corp ? '集团 ' + c.corp : '']
     .filter(Boolean).join(' · ');
 }
-
 function needLabel(n) {
   const t = n.type_key ? typeName(n.type_key) : '任意类型';
-  const m = n.module ? (' · ' + iconChip(n.module)) : '';
-  const sd = n.side ? (' · ' + n.side) : '';
   const lv = n.min_level ? (' · Lv≥' + n.min_level) : '';
   const bn = n.min_bonus ? (' · ≥' + n.min_bonus + '%') : '';
-  return t + m + sd + lv + bn;
+  return t + lv + bn;
 }
 
 /* ---------------- GitHub 读写 ---------------- */
@@ -141,20 +88,19 @@ async function readData() {
 }
 
 /** 对最新 data.json 应用 fn，带 409 冲突重试 */
-/* 同一持有者、同类型/等级/加成/图标/光暗/状态的，合成一条并记数量 */
+/* 同一持有者、同类型/等级/加成的，合成一条并记数量 */
 function artKey(a) {
   // 等级/加成没读出来就不合并：宁可多条，也不能把不同等级的合成一条
   if (a.level == null || a.bonus == null) return null;
   if (!a.type_key) return null;                 // 类型没填就不合并，免得把不同种类并成一条
   return [a.owner, a.type_key || '', a.level, a.bonus,
-          a.module || '', a.side || '', a.status || ''].join('|');
+          ].join('|');
 }
 function mergeArtifacts(d) {
   const arts = d.artifacts || [];
   const by = new Map();
   const out = [];
   for (const a of arts) {
-    if (a.status === 'reserved') { out.push(a); continue; }   // 交易中的不合并，避免引用断掉
     const k = artKey(a);
     if (!k) { out.push(Object.assign({}, a, { qty: a.qty || 1 })); continue; }
     const hit = by.get(k);
@@ -200,7 +146,7 @@ async function load() {
   S = Object.assign({ players: [], artifacts: [], needs: [], trades: [], notices: [], templates: {}, icons: {} }, d);
   $('#sTotal').textContent = S.artifacts.reduce((n, x) => n + (x.qty || 1), 0)
     + (S.artifacts.some(x => (x.qty || 1) > 1) ? `（${S.artifacts.length} 种）` : '');
-  $('#sList').textContent = S.artifacts.filter(a => a.status === 'list').length;
+  $('#sList').textContent = S.artifacts.length;
   $('#sPlayers').textContent = S.players.length;
   const me = S.players.find(p => AUTH && p.id === AUTH.id);
   ME = me || null;
@@ -209,57 +155,10 @@ async function load() {
   $('#meHint').textContent = me ? ('账号 ' + (me.login || '—') + ' · 已登录') : '登录后才能上传、挂牌和发交换意向。';
   $('#authBtn').classList.toggle('hidden', !!me);
   $('#logoutBtn').classList.toggle('hidden', !me);
-  renderIconPickers();
-  if (typeof REC !== 'undefined') {
-    const tpl = {};
-    Object.entries(S.icons || {}).forEach(([id, ic]) => { if (ic && ic.sig) tpl[id] = { side: '', sigs: [ic.sig] }; });
-    REC.setTemplates(tpl);
-    if (!load.prewarmed) { load.prewarmed = true; REC.ensureWorker().catch(() => {}); }  // 提前下模型
-  }
   fillSelects();
   renderMarket(); renderMatch(); renderInbox(); renderMine(); renderNotices(); renderCatalog();
 }
 
-let needIcon = '';
-
-/* 强化图标筛选：下拉菜单，菜单项就是图标（按图标认，不用名字） */
-function iconDDHTML(sel, labelAll) {
-  const icons = Object.entries(S.icons || {});
-  const cur = (sel && S.icons && S.icons[sel]) ? S.icons[sel] : null;
-  const head = cur
-    ? `${cur.thumb ? `<img src="${cur.thumb}">` : iconImg(sel, 22)}<span>已选：强化图标 ${cur.n ? '×' + cur.n : ''}</span>`
-    : `<span>${labelAll}</span>`;
-  const items = [`<button type="button" class="icondd-item ${sel ? '' : 'on'}" data-v=""><span>${labelAll}</span></button>`]
-    .concat(icons.map(([id, ic]) => {
-      const pic = ic && ic.thumb ? `<img src="${ic.thumb}">` : iconImg(id, 26);
-      return `<button type="button" class="icondd-item ${sel === id ? 'on' : ''}" data-v="${id}">${pic}${ic && ic.n ? `<span>×${ic.n}</span>` : ''}</button>`;
-    })).join('');
-  return `<div class="icondd"><button type="button" class="icondd-btn">${head}<span class="caret">▾</span></button>
-    <div class="icondd-panel">${items}</div></div>`;
-}
-
-function bindIconDD(el, cb) {
-  if (!el) return;
-  const panel = el.querySelector('.icondd-panel');
-  el.querySelector('.icondd-btn').onclick = e => { e.stopPropagation(); panel.classList.toggle('open'); };
-  el.querySelectorAll('.icondd-item').forEach(it => {
-    it.onclick = e => { e.stopPropagation(); panel.classList.remove('open'); cb(it.dataset.v || ''); };
-  });
-}
-document.addEventListener('click', () => document.querySelectorAll('.icondd-panel.open').forEach(p => p.classList.remove('open')));
-
-function renderFilterIcons() {
-  const f = $('#fModuleBar');
-  if (f) { f.innerHTML = iconDDHTML(filterIcon, '全部强化图标'); bindIconDD(f, v => { filterIcon = v; renderFilterIcons(); renderMarket(); }); }
-}
-
-function renderIconPickers() {
-  renderFilterIcons();
-  const n = $('#nIconBar');
-  if (n) { n.innerHTML = iconBarHTML(needIcon, '不限'); bindIconBar(n, v => { needIcon = v; }); }
-  const cnt = $('#iconCount');
-  if (cnt) cnt.textContent = Object.keys(S.icons || {}).length + ' 种图标';
-}
 
 function fillSelects() {
   if ($('#fType').options.length < 2) {
@@ -296,52 +195,45 @@ function artCard(a, opts = {}) {
   const color = TYPE_COLOR[a.type_key] || '#8aa2b2';
   const lv = a.level ? `<span class="chip hi">Lv${a.level}</span>` : '';
   const bonus = a.bonus ? `<span class="chip hi">+${a.bonus}%</span>` : '';
-  const mod = a.module ? iconChip(a.module) : '';
-  const badgeElx = a.badge_img
-    ? `<div class="badge ${a.side === '光' ? 'light' : ''}" style="overflow:hidden;padding:0"><img src="${a.badge_img}" style="width:100%;height:100%;object-fit:cover"></div>`
-    : (a.module && iconOf(a.module) ? `<div class="badge ${a.side === '光' ? 'light' : ''}" style="overflow:hidden;padding:0">${iconImg(a.module, 34)}</div>` : '');
-  const side = a.side ? `<span class="chip ${a.side === '暗' ? 'dark' : ''}">${a.side}</span>` : '';
+  const mod = '';
+  const badgeEl = '';
+  const side = '';
   const qty = (a.qty || 1) > 1 ? `<span class="chip hi">×${a.qty}</span>` : '';
-  const badgeEl = badgeElx;
   const cc = contactOf(a.owner);
   const ownerLine = opts.hideOwner ? '' : `<div class="owner">${playerName(a.owner)}${cc ? ` <span class="muted" style="font-size:11px">· ${cc}</span>` : ''}</div>`;
   return `<div class="art">
     <div class="hex">${catIcon(a.level, a.type_key) ? `<img class="articon" src="${catIcon(a.level, a.type_key)}">` : hexSVG(color, a.level)}${badgeEl}</div>
     <div class="info">
       <div class="t1">${typeName(a.type_key)} ${lv}${bonus}${qty}${side}</div>
-      <div class="t2">${mod || '无强化图标'}${a.status === 'reserved' ? ' · 交易中' : ''}</div>
+      <div class="t2">${(a.qty || 1) > 1 ? '同款合并' : ''}</div>
       ${ownerLine}
     </div>
     <div class="row" style="flex:0 0 auto">${opts.actions || ''}</div>
   </div>`;
 }
 
-let filterIcon = '';
 function renderMarket() {
-  const t = $('#fType').value, m = filterIcon;
+  const t = $('#fType').value;
   const lv = $('#fLevel') ? $('#fLevel').value : '';
   const bnEl = $('#fBonus');
   const bn = bnEl && bnEl.value ? +bnEl.value : null;
-  let list = S.artifacts.filter(a => a.status === 'list');
+  let list = S.artifacts.slice();
   if (t) list = list.filter(a => a.type_key === t);
-  if (m) list = list.filter(a => a.module === m);
   if (lv) list = list.filter(a => a.level != null && a.level === +lv);
   if (bn != null) list = list.filter(a => a.bonus != null && a.bonus >= bn);
   $('#marketList').innerHTML = list.length
     ? list.sort((a, b) => (b.level || 0) - (a.level || 0)).map(a =>
       artCard(a, { actions: `<button class="btn mini" onclick="openTrade('${a.id}')">交换</button>` })).join('')
-    : '<div class="empty">还没有可交换的条目，去「上传入库」把条目标记成「可交换」</div>';
+    : '<div class="empty">还没有条目，去「上传」传截图入库</div>';
 }
 
 /* 匹配算法（与本地版一致） */
 function matchScore(a, n) {
   let s = 60;
   if (n.type_key && a.type_key !== n.type_key) return 0;
-  if (n.module && a.module !== n.module) return 0;
-  if (n.side && a.side !== n.side) return 0;
+
   if (n.min_level && (a.level || 0) < n.min_level) return 0;
   if (n.min_bonus && (a.bonus || 0) < n.min_bonus) return 0;
-  if (a.module) s += 12;
   if (a.level && a.level >= 11) s += 8;
   if (a.bonus && a.bonus >= 360) s += 10;
   if (n.min_bonus && a.bonus) s += 5;
@@ -351,7 +243,7 @@ function matchScore(a, n) {
 function renderMatch() {
   if (!ME) { $('#wantList').innerHTML = '<div class="empty">先登录</div>'; $('#offerList').innerHTML = ''; return; }
   const needs = S.needs.filter(n => n.status === 'open');
-  const arts = S.artifacts.filter(a => a.status === 'list');
+  const arts = S.artifacts.slice();
   const want = [], offer = [];
   needs.filter(n => n.player === ME.id).forEach(n => arts.forEach(a => {
     if (a.owner === ME.id) return;
@@ -373,7 +265,7 @@ function renderMatch() {
     <div class="tcard">
       <div class="lenflex"><span class="muted">${x.owner} 想要：${needLabel(x.n)}</span><span class="pill">匹配 ${x.sc}</span></div>
       ${artCard(x.a, { hideOwner: true })}
-    </div>`).join('') : '<div class="empty">暂无：把条目标成「可交换」，或等别人发需求</div>';
+    </div>`).join('') : '<div class="empty">暂无：先入库自己的条目，或等别人发需求</div>';
 }
 
 function tradeRow(t, mine) {
@@ -413,10 +305,8 @@ function renderMine() {
   const arts = S.artifacts.filter(a => a.owner === ME.id);
   $('#mineList').innerHTML = arts.length ? arts.map(a => artCard(a, {
     hideOwner: true, actions: `
-      <select onchange="setStatus('${a.id}',this.value)" style="width:auto;padding:5px 8px;font-size:12px">
-        <option value="list" ${a.status !== 'have' ? 'selected' : ''}>可交换</option>
-        <option value="have" ${a.status === 'have' ? 'selected' : ''}>下架</option>
-        <option value="reserved" ${a.status === 'reserved' ? 'selected' : ''} disabled>交易中</option>
+      <span style="display:none">
+
       </select>
       <button class="btn ghost mini" onclick="openEdit('${a.id}')">改</button>
       <button class="btn ghost mini" onclick="delArt('${a.id}')">删</button>`
@@ -474,7 +364,7 @@ function renderNotices() {
 }
 
 /* ---------------- AI 识别（上传到仓库 inbox，Actions 里跑深度学习 OCR） ---------------- */
-let pendingSlots = [], pendingBadges = [];
+let pendingSlots = [];
 const aiState = { busy: false, baseline: 0, baselineN: 0, head: '' };
 
 function fileToB64(file) {
@@ -548,17 +438,15 @@ async function commitItems(items) {
   const rows = items.map((s, i) => ({
     id: 'a' + base + i + Math.floor(Math.random() * 1e4).toString(36),
     owner: ME.id, type_key: s.type_key || '', level: s.level, bonus: s.bonus,
-    module: '', side: s.side || '', status: s.status || 'list',
-    note: '', img: (catEntry(s.level, s.type_key) || {}).img || s.plate || '', badge_img: s.badge_img || '', sig: s.sig || '',
+    note: '', img: (catEntry(s.level, s.type_key) || {}).img || s.plate || '',
     lum: s.lum == null ? null : s.lum, qty: 1,
     t: Math.floor(Date.now() / 1000)
   }));
   let added = 0;
   await mutate(d => {
     d.artifacts = d.artifacts || [];
-    for (const it of rows) it.module = it.sig ? ensureIcon(d, it.sig, it.badge_img, it.lum, it.type_key) : '';
     for (const it of rows) {
-      const same = d.artifacts.find(a => artKey(a) === artKey(it) && a.status !== 'reserved');
+      const same = d.artifacts.find(a => artKey(a) === artKey(it));
       if (same) same.qty = (same.qty || 1) + 1;
       else { d.artifacts.push(it); added++; }
     }
@@ -610,10 +498,9 @@ async function cloudRecognize(files) {
   // 认不全也留行：宁可空着让你手填，也别默默少一行
   const items = (res.items || []).filter(it => it.level != null || it.bonus != null || it.plate)
     .map(it => ({
-      type_key: it.type_key || null, level: it.level == null ? null : it.level, bonus: it.bonus == null ? null : it.bonus, side: it.side || '暗',
+      type_key: it.type_key || null, level: it.level == null ? null : it.level, bonus: it.bonus == null ? null : it.bonus, qty: 1,
       sig: it.sig || '', lum: it.lum == null ? null : it.lum,
-      plate: it.plate ? IMG_BASE + it.plate : '', badge_img: it.badge_img ? IMG_BASE + it.badge_img : '',
-      badge_present: !!(it.badge_img || it.sig), module: it.module || ''
+      plate: it.plate ? IMG_BASE + it.plate : ''
     }));
   if (!items.length) throw new Error('云端没认出条目');
   return { items, secs };
@@ -629,7 +516,7 @@ $('#file').onchange = async e => {
   $('#upHint').textContent = '准备上传…';
   try {
     const r = await cloudRecognize(files);
-    pendingSlots = r.items.map(s => Object.assign({ status: 'list' }, s));
+    pendingSlots = r.items.slice();
     const grid = r.items.some(s => !s.type_key);
     $('#resHint').textContent = `云端 AI 认出 ${r.items.length} 件（${r.secs}s）。` +
       (grid ? '容器截图没有类型文字，在上面选一次类型；' : '') + '核对无误就点「确认入库」。';
@@ -642,7 +529,7 @@ $('#file').onchange = async e => {
       const items = await aiLocalRecognize(files);
       $('#file').value = '';
       if (!items.length) throw new Error('没认到条目，换张图试试');
-      pendingSlots = items.map(s => Object.assign({ status: 'list', side: s.side || '暗' }, s));
+      pendingSlots = items.map(s => Object.assign({}, s));
       $('#resHint').textContent = `本地认出 ${items.length} 件。核对无误就点「确认入库」。`;
       renderResult();
       $('#upHint').textContent = '';
@@ -679,16 +566,7 @@ function renderResult() {
         <div><label class="f">等级</label><input data-i="${i}" data-k="level" type="number" value="${s.level == null ? '' : s.level}"></div>
         <div><label class="f">加成%</label><input data-i="${i}" data-k="bonus" type="number" value="${s.bonus == null ? '' : s.bonus}"></div>
       </div>
-      <label class="f">强化图标${s.badge_present ? (s.module ? '（同款）' : '（新）') : '（无）'}</label>
-      <div class="iconcell">${s.badge_present && s.badge_img ? `<img src="${s.badge_img}">` : '<span class="muted" style="font-size:12px">无</span>'}</div>
-      <div class="grid2" style="margin-top:4px">
-        <div><label class="f">光/暗</label><select data-i="${i}" data-k="side">
-          <option value="" ${!s.side ? 'selected' : ''}>—</option>
-          <option ${s.side === '光' ? 'selected' : ''}>光</option><option ${s.side === '暗' ? 'selected' : ''}>暗</option></select></div>
-        <div><label class="f">状态</label><select data-i="${i}" data-k="status">
-          <option value="list" ${s.status !== 'have' ? 'selected' : ''}>可交换（默认）</option>
-          <option value="have" ${s.status === 'have' ? 'selected' : ''}>下架</option></select></div>
-      </div>
+
     </div>`).join('');
   const ba = $('#batchApply');
   if (ba) ba.onclick = () => {
@@ -714,16 +592,14 @@ $('#commitBtn').onclick = async () => {
     const items = pendingSlots.map((s, i) => ({
       id: 'a' + Date.now().toString(36) + i,
       owner: ME.id, type_key: s.type_key || '', level: s.level, bonus: s.bonus,
-      module: s.module || '', side: s.side || '', status: s.status || 'list',
-      note: '', img: '', badge_img: s.badge_img || '', sig: s.sig || '', qty: 1,
+      note: '', img: '', qty: 1,
       t: Math.floor(Date.now() / 1000)
     }));
     let added = 0;
     await mutate(d => {
       d.artifacts = d.artifacts || [];
-      for (const it of items) it.module = it.sig ? ensureIcon(d, it.sig, it.badge_img, it.lum, it.type_key) : '';
       for (const it of items) {
-        const same = d.artifacts.find(a => artKey(a) === artKey(it) && a.status !== 'reserved');
+        const same = d.artifacts.find(a => artKey(a) === artKey(it));
         if (same) same.qty = (same.qty || 1) + 1;      // 同款：只加数量
         else { d.artifacts.push(it); added++; }
       }
@@ -748,7 +624,7 @@ async function addManual() {
   if (!ME) { toast('请先登录'); openAuth(); return; }
   const rec = {
     id: 'a' + Date.now().toString(36), owner: ME.id, type_key: 'trade', level: null, bonus: null,
-    module: '', side: '', status: 'list', note: '', img: '', badge_img: '', sig: '',
+    note: '', img: '',
     t: Math.floor(Date.now() / 1000)
   };
   try {
@@ -759,13 +635,6 @@ async function addManual() {
 }
 
 /* ---------------- 条目编辑 ---------------- */
-async function setStatus(id, v) {
-  try {
-    await mutate(d => { const a = d.artifacts.find(x => x.id === id); if (a) a.status = v; }, '切换条目状态');
-    await load();
-  } catch (e) { toast('失败：' + e.message); }
-}
-
 async function delArt(id) {
   if (!confirm('删除这件条目记录？')) return;
   try {
@@ -785,11 +654,6 @@ function openEdit(id) {
   editing = Object.assign({}, S.artifacts.find(a => a.id === id));
   if (!editing) return;
   $('#eType').innerHTML = TYPES.map(t => `<option value="${t.key}" ${t.key === editing.type_key ? 'selected' : ''}>${t.name}</option>`).join('');
-  $('#eIcon').innerHTML = editing.module
-    ? `${iconImg(editing.module, 40)} <button class="btn ghost mini" id="eIconClear">清除图标</button>`
-    : `<span class="muted" style="font-size:12px">无强化图标</span>`;
-  if ($('#eIconClear')) $('#eIconClear').onclick = () => { editing._clearIcon = true; $('#eIcon').innerHTML = '<span class="muted" style="font-size:12px">提交后清除</span>'; };
-  $('#eSide').value = editing.side || '';
   $('#eLevel').value = editing.level || '';
   $('#eBonus').value = editing.bonus || '';
   $('#eSave').onclick = saveEdit;
@@ -799,7 +663,7 @@ function openEdit(id) {
 async function saveEdit() {
   const a = editing;
   const patch = {
-    type_key: $('#eType').value, module: editing._clearIcon ? '' : (editing.module || ''), side: $('#eSide').value,
+    type_key: $('#eType').value,
     level: $('#eLevel').value ? +$('#eLevel').value : null,
     bonus: $('#eBonus').value ? +$('#eBonus').value : null
   };
@@ -808,10 +672,6 @@ async function saveEdit() {
       const x = d.artifacts.find(y => y.id === a.id);
       if (!x) return false;
       Object.assign(x, patch);
-      if (!patch.module && x.sig && d.icons) {
-        // 清除图标时把它从图标库减一个计数（不删库，避免误伤别人同款）
-        for (const ic of Object.values(d.icons)) { if (ic.sig === x.sig && ic.n > 0) ic.n--; }
-      }
     }, '修正条目 ' + a.id);
     $('#dlgEdit').close();
     toast('已保存');
@@ -823,7 +683,7 @@ async function saveEdit() {
 async function postNeed() {
   if (!ME) { toast('请先登录'); openAuth(); return; }
   const body = {
-    type_key: $('#nType').value, module: needIcon, side: $('#nSide').value,
+    type_key: $('#nType').value,
     min_level: +$('#nLv').value || 0, min_bonus: +$('#nBonus').value || 0, note: $('#nNote').value
   };
   try {
@@ -846,10 +706,10 @@ function openTrade(aid) {
   if (!dlgArtifact) return;
   if (dlgArtifact.owner === ME.id) { toast('这是你自己的条目'); return; }
   $('#dlgTarget').innerHTML = `${typeName(dlgArtifact.type_key)} ${dlgArtifact.level ? 'Lv' + dlgArtifact.level : ''} ${dlgArtifact.bonus ? '+' + dlgArtifact.bonus + '%' : ''}
-    ${dlgArtifact.module ? iconChip(dlgArtifact.module) : ''} ${dlgArtifact.side || ''} · 持有者 ${playerName(dlgArtifact.owner)}${contactOf(dlgArtifact.owner) ? `<div class="muted" style="margin-top:4px">联系：${contactOf(dlgArtifact.owner)}</div>` : '<div class="muted" style="margin-top:4px">对方还没填联系方式</div>'}`;
-  const mine = S.artifacts.filter(a => a.owner === ME.id && a.status !== 'reserved');
+    持有者 ${playerName(dlgArtifact.owner)}${contactOf(dlgArtifact.owner) ? `<div class="muted" style="margin-top:4px">联系：${contactOf(dlgArtifact.owner)}</div>` : '<div class="muted" style="margin-top:4px">对方还没填联系方式</div>'}`;
+  const mine = S.artifacts.filter(a => a.owner === ME.id);
   $('#dlgGive').innerHTML = '<option value="">不指定</option>'
-    + mine.map(a => `<option value="${a.id}">${typeName(a.type_key)} ${a.level ? 'Lv' + a.level : ''} ${a.bonus ? '+' + a.bonus + '%' : ''} ${a.module ? '[有强化图标] ' : ''}${a.side || ''}${(a.qty || 1) > 1 ? ' ×' + a.qty : ''}</option>`).join('');
+    + mine.map(a => `<option value="${a.id}">${typeName(a.type_key)} ${a.level ? 'Lv' + a.level : ''} ${a.bonus ? '+' + a.bonus + '%' : ''} ${(a.qty || 1) > 1 ? ' ×' + a.qty : ''}</option>`).join('');
   $('#dlgMsg').value = '';
   $('#dlgSend').onclick = async () => {
     const give = $('#dlgGive').value || null;

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>交换站</title>
-<link rel="stylesheet" href="style.css?v=20261125CLDU">
+<link rel="stylesheet" href="style.css?v=20261125CLDV">
 </head>
 <body>
 <div class="wrap">
@@ -12,8 +12,8 @@
   <h1>交换站</h1>
   <div class="sub"></div>
   <div class="stats">
-    <div class="stat"><b id="sTotal">0</b><i>已登记条目</i></div>
-    <div class="stat"><b id="sList">0</b><i>可交换</i></div>
+    <div class="stat"><b id="sTotal">0</b><i>条目总数</i></div>
+    <div class="stat"><b id="sList">0</b><i>条目条数</i></div>
     <div class="stat"><b id="sPlayers">0</b><i>成员</i></div>
   </div>
 </header>
@@ -67,7 +67,6 @@
   <div class="card">
     <div class="row">
       <select id="fType" style="flex:1;min-width:110px"><option value="">全部类型</option></select>
-      <div id="fModuleBar" class="iconbar" style="flex:2"></div>
       <select id="fLevel" style="width:110px"><option value="">全部等级</option></select>
       <input id="fBonus" type="number" placeholder="加成≥%" style="width:96px">
     </div>
@@ -107,8 +106,6 @@
     <h3>发布需求</h3>
     <div class="grid3">
       <div><label class="f">类型</label><select id="nType"></select></div>
-      <div style="grid-column:1/-1"><label class="f">强化图标</label><div id="nIconBar" class="iconbar"></div></div>
-      <div><label class="f">光/暗</label><select id="nSide"><option value="">不限</option><option>光</option><option>暗</option></select></div>
     </div>
     <div class="grid2" style="margin-top:2px">
       <div><label class="f">最低等级</label><input id="nLv" type="number" value="11" min="0" max="20"></div>
@@ -154,10 +151,6 @@
     <div><label class="f">等级</label><input id="eLevel" type="number"></div>
     <div><label class="f">加成 %</label><input id="eBonus" type="number"></div>
   </div>
-  <div class="grid2">
-    <div><label class="f">强化图标</label><div id="eIcon"></div></div>
-    <div><label class="f">光/暗</label><select id="eSide"><option value="">—</option><option>光</option><option>暗</option></select></div>
-  </div>
   <div class="row" style="margin-top:12px;justify-content:flex-end">
     <button class="btn ghost mini" onclick="dlgEdit.close()">取消</button>
     <button class="btn" id="eSave">保存</button>
@@ -189,10 +182,10 @@
 </dialog>
 
 <script src="tess/tesseract.min.js"></script>
-<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">云端 AI 识别 v2026.11.25.CLDU</div>
+<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">云端 AI 识别 v2026.11.25.CLDV</div>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
-<script src="recog.js?v=20261125CLDU"></script>
-<script src="ocr_ai.js?v=20261125CLDU"></script>
-<script src="app.js?v=20261125CLDU"></script>
+<script src="recog.js?v=20261125CLDV"></script>
+<script src="ocr_ai.js?v=20261125CLDV"></script>
+<script src="app.js?v=20261125CLDV"></script>
 </body>
 </html>
