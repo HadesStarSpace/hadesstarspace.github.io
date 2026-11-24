@@ -262,32 +262,34 @@ def level_chip(img, pill):
     mask = ((hh > 65) & (hh < 112) & (ss > 25) & (ss < 200) & (vv > 170)).astype(np.uint8) * 255
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
     cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    best = None
+    picks = []
     for c in cnts:
         x, y, cw, ch = cv2.boundingRect(c)
-        if cw < 18 or ch < 18 or cw > 0.55 * w or ch > 0.55 * w:
+        if cw < 16 or ch < 16 or cw > 0.55 * w or ch > 0.55 * w:
             continue
         if not (0.6 <= cw / float(ch) <= 1.7):
             continue
-        if best is None or cv2.contourArea(c) > best[4]:
-            best = (x, y, cw, ch, cv2.contourArea(c))
-    if not best:
+        want = 0.32 * w
+        picks.append((abs(max(cw, ch) - want), abs((y + ch / 2) - h), cv2.contourArea(c), x, y, cw, ch))
+    if not picks:
         print("  等级方块没找到", (x0, y0, x1, y1))
         return None
-    x, y, cw, ch = best[:4]
-    crop = sub[y:y + ch, x:x + cw]
-    for scale in (6, 4):
-        up = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-        for bgr in (up, cv2.cvtColor((cv2.cvtColor(up, cv2.COLOR_BGR2GRAY) < 120).astype(np.uint8) * 255,
+    picks.sort()
+    for _, _, _, x, y, cw, ch in picks[:5]:
+        crop = sub[y:y + ch, x:x + cw]
+        for scale in (8, 6):
+            up = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+            for bgr in (up,
+                        cv2.cvtColor((cv2.cvtColor(up, cv2.COLOR_BGR2GRAY) < 110).astype(np.uint8) * 255,
                                     cv2.COLOR_GRAY2BGR)):
-            res, _ = ENGINE(bgr)
-            for _, txt, sc in (res or []):
-                if sc is None or float(sc) < 0.5:
-                    continue
-                m = re.fullmatch(r"\s*(\d{1,2})\s*", str(txt))
-                if m and 1 <= int(m.group(1)) <= 15:
-                    return int(m.group(1))
-    print("  等级方块认不出", best)
+                res, _ = ENGINE(bgr)
+                for _, txt, sc in (res or []):
+                    if sc is None or float(sc) < 0.5:
+                        continue
+                    m = re.fullmatch(r"\s*(\d{1,2})\s*", str(txt))
+                    if m and 1 <= int(m.group(1)) <= 15:
+                        return int(m.group(1))
+    print("  等级方块认不出", picks[:2])
     return None
 
 
