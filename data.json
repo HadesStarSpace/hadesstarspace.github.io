@@ -1,5 +1,5 @@
 {
- "updated": 1795503005,
+ "updated": 1795503043,
  "players": [
   {
    "id": "pmwu5fc4o",
@@ -11,24 +11,7 @@
    "claimed": 1
   }
  ],
- "artifacts": [
-  {
-   "id": "amwuc4ecs",
-   "owner": "pmwu5fc4o",
-   "type_key": "trade",
-   "level": null,
-   "bonus": null,
-   "module": "",
-   "side": "",
-   "status": "have",
-   "note": "",
-   "img": "",
-   "badge_img": "",
-   "sig": "",
-   "t": 1795502990,
-   "qty": 3
-  }
- ],
+ "artifacts": [],
  "needs": [],
  "trades": [],
  "templates": {},
