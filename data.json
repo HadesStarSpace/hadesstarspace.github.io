@@ -1,5 +1,5 @@
 {
- "updated": 1795514808,
+ "updated": 1795515234,
  "players": [
   {
    "id": "pmwu5fc4o",
@@ -11,7 +11,56 @@
    "claimed": 1
   }
  ],
- "artifacts": [],
+ "artifacts": [
+  {
+   "id": "a1",
+   "owner": "pmwu5fc4o",
+   "type_key": "weapon",
+   "level": 12,
+   "bonus": 360,
+   "module": "ic2",
+   "side": "暗",
+   "status": "have",
+   "note": "",
+   "img": "img/p_533ceb064f03.jpg",
+   "badge_img": "img/b_b4c1212b58a2.jpg",
+   "sig": "MAAAAAAAAAAAAAAAAAAAADAEs8a2t95CAAAAAAAAAAAwiaQCAQEi/w0AAAAAAAAALtIcNWRUIpZIAAAAAAAAACu1FTM1PSxhWwAAAAAAAACMrgg6GjAhW1sAAAAAAAAAuq0AEyg1CFtbAAAAAAAAALCsAAAYGQBbWwAAAAAAAACZrgAAGBgAXlsAAAAAAAAAY8wMACMOAItOAAAAAAAAADegegACAA36FQAAAAAAAAAyDuGrl5jlZQAAAAAAAAAAbVRUbm5uYSQAAAAAAAAAAFZRUVFRUWrRUQAAAAAAAAAPAgICAgIGK88MAAAAAAAAAAAAAAAAAAp6QAAAAAAAAA==",
+   "from": "5p6X5aSn5aS0__1795515209_0.png",
+   "qty": 1
+  },
+  {
+   "id": "a2",
+   "owner": "pmwu5fc4o",
+   "type_key": "weapon",
+   "level": 12,
+   "bonus": 360,
+   "module": "ic3",
+   "side": "暗",
+   "status": "have",
+   "note": "",
+   "img": "img/p_f93a572c1c5f.jpg",
+   "badge_img": "img/b_e5f89c4d0ad6.jpg",
+   "sig": "AAAAAAAAAAAAAAAAAAAAAAAAIVlZWUUCAAAAAAAAAAAASf9pWVq2xgEAAAAAAAAAA+MqJTIrG8FDAAAAAAAAACKrKlFSXj9VegAAAAAAAAAriRkrLC4pRm8AAAAAAAAAPIkHISc6E0NvAAAAAAAAADKJAAQcIQBDbwAAAAAAAAA7hwAAGBgAQ28AAAAAAAAAKKcAACQWAE16AAAAAAAAAAjiHQAKAAC/QwAAAAAAAAAESv5pWVm1yAEAAAAAAAAAJCRGfX19ahIAAAAAAAAAAGFhYWFhYWzERwAAAAAAAAAMDAwMDAwPLNMTAAAAAAAAAAAAAAAAAAdsXAAAAAAAAA==",
+   "from": "5p6X5aSn5aS0__1795515209_0.png",
+   "qty": 1
+  },
+  {
+   "id": "a3",
+   "owner": "pmwu5fc4o",
+   "type_key": "shield",
+   "level": 10,
+   "bonus": 318,
+   "module": "ic1",
+   "side": "暗",
+   "status": "have",
+   "note": "",
+   "img": "img/p_adf84f9cf6eb.jpg",
+   "badge_img": "img/b_13360e25da8e.jpg",
+   "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAAAAAAAAAAAAAAAAAAC8ACSEhIQgAAAAAAAAAAAAnKP+xprT+JgAAAAAAAAAAJ+tOCwANUeEBAAAAAAAAABvOGzRDLBTQAwAAAAAAAAAgqSdheUskxAMAAAAAAAAAHqgXSjg+F8QDAAAAAAAAAB6pKVmQSynEAwAAAAAAAAAi3RQ2OzYQ1wMAAAAAAAAAMNRxDQgOfM8AAAAAAAAAAC4Z2cG7xNQQAAAAAAAAAACWk5OTk5O+bgAAAAAAAAAAGBMTExMVJMlGAAAAAAAAAA==",
+   "from": "5p6X5aSn5aS0__1795515209_1.png",
+   "qty": 1
+  }
+ ],
  "needs": [],
  "trades": [],
  "templates": {},
@@ -75,6 +124,18 @@
    "player": "林大头",
    "img": "",
    "note": "AI 识别完成：5p6X5aSn5aS0__1795511759_1.png 张图认出 2 件（当前共 3 条）"
+  },
+  {
+   "t": 1795515233,
+   "player": "林大头",
+   "img": "",
+   "note": "AI 识别完成：5p6X5aSn5aS0__1795515209_0.png 张图认出 2 件（当前共 2 条）"
+  },
+  {
+   "t": 1795515234,
+   "player": "林大头",
+   "img": "",
+   "note": "AI 识别完成：5p6X5aSn5aS0__1795515209_1.png 张图认出 1 件（当前共 3 条）"
   }
  ],
  "icons": {
@@ -113,19 +174,19 @@
   "ic1": {
    "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACgAAAAAAAAAAAAAAAAAAAC8ACSEhIQgAAAAAAAAAAAAnKP+xprT+JgAAAAAAAAAAJ+tOCwANUeEBAAAAAAAAABvOGzRDLBTQAwAAAAAAAAAgqSdheUskxAMAAAAAAAAAHqgXSjg+F8QDAAAAAAAAAB6pKVmQSynEAwAAAAAAAAAi3RQ2OzYQ1wMAAAAAAAAAMNRxDQgOfM8AAAAAAAAAAC4Z2cG7xNQQAAAAAAAAAACWk5OTk5O+bgAAAAAAAAAAGBMTExMVJMlGAAAAAAAAAA==",
    "thumb": "",
-   "n": 1,
+   "n": 2,
    "type": "shield"
   },
   "ic2": {
    "sig": "MAAAAAAAAAAAAAAAAAAAADAEs8a2t95CAAAAAAAAAAAwiaQCAQEi/w0AAAAAAAAALtIcNWRUIpZIAAAAAAAAACu1FTM1PSxhWwAAAAAAAACMrgg6GjAhW1sAAAAAAAAAuq0AEyg1CFtbAAAAAAAAALCsAAAYGQBbWwAAAAAAAACZrgAAGBgAXlsAAAAAAAAAY8wMACMOAItOAAAAAAAAADegegACAA36FQAAAAAAAAAyDuGrl5jlZQAAAAAAAAAAbVRUbm5uYSQAAAAAAAAAAFZRUVFRUWrRUQAAAAAAAAAPAgICAgIGK88MAAAAAAAAAAAAAAAAAAp6QAAAAAAAAA==",
    "thumb": "",
-   "n": 1,
+   "n": 2,
    "type": "weapon"
   },
   "ic3": {
    "sig": "AAAAAAAAAAAAAAAAAAAAAAAAIVlZWUUCAAAAAAAAAAAASf9pWVq2xgEAAAAAAAAAA+MqJTIrG8FDAAAAAAAAACKrKlFSXj9VegAAAAAAAAAriRkrLC4pRm8AAAAAAAAAPIkHISc6E0NvAAAAAAAAADKJAAQcIQBDbwAAAAAAAAA7hwAAGBgAQ28AAAAAAAAAKKcAACQWAE16AAAAAAAAAAjiHQAKAAC/QwAAAAAAAAAESv5pWVm1yAEAAAAAAAAAJCRGfX19ahIAAAAAAAAAAGFhYWFhYWzERwAAAAAAAAAMDAwMDAwPLNMTAAAAAAAAAAAAAAAAAAdsXAAAAAAAAA==",
    "thumb": "",
-   "n": 1,
+   "n": 2,
    "type": "weapon"
   }
  }
