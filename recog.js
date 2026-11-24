@@ -397,32 +397,115 @@ const REC = (() => {
     for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
     return out;
   }
-  function readBadge(img, p) {
+
+  /* 在底板右侧扫一块“亮色均匀方块”（白牌/灰牌）：四角明显比内部暗，用来排除背景和药丸 */
+  function findLightBadge(img, p) {
     const W = p.w, cx = p.cx, cy = p.cy;
-    const big = W > 170;                    // 列表面板图标在格子右侧；容器卡片图标在格子右上
-    const S = 0.46 * W;
-    const ox = big ? 0.62 : 0.49;
-    const oy = big ? -0.05 : -0.88;
-    const cc = crop(img, cx + ox * W - S / 2, cy + oy * W - S / 2, cx + ox * W + S / 2, cy + oy * W + S / 2);
-    if (!cc) return { present: false, side: null, thumb: null, sig: '' };
+    const R = crop(img, cx - 1.0 * W, cy - 1.3 * W, cx + 1.6 * W, cy + 1.1 * W);
+    if (!R) return null;
+    const rw = R.w, rh = R.h;
+    const d = R.canvas.getContext('2d').getImageData(0, 0, rw, rh).data;
+    // 灰度 + 亮牌掩膜
+    const g = new Float32Array(rw * rh), m = new Float32Array(rw * rh);
+    for (let i = 0, k = 0; i < g.length; i++, k += 4) {
+      const hsv = toHSV(d[k], d[k + 1], d[k + 2]);
+      g[i] = hsv[2];
+      m[i] = (hsv[2] > 95 && hsv[1] < 70) ? 1 : 0;
+    }
+    const gw = rw + 1;
+    const I = new Float64Array(gw * (rh + 1)), M = new Float64Array(gw * (rh + 1));
+    for (let y = 0; y < rh; y++) {
+      let sg = 0, sm = 0;
+      for (let x = 0; x < rw; x++) {
+        sg += g[y * rw + x]; sm += m[y * rw + x];
+        I[(y + 1) * gw + x + 1] = I[y * gw + x + 1] + sg;
+        M[(y + 1) * gw + x + 1] = M[y * gw + x + 1] + sm;
+      }
+    }
+    const sum = (A, x0, y0, x1, y1) => A[y1 * gw + x1] - A[y0 * gw + x1] - A[y1 * gw + x0] + A[y0 * gw + x0];
+    const area = S => S * S;
+    let best = null;
+    for (const sr of [0.30, 0.38, 0.46]) {
+      const S = Math.round(sr * W);
+      if (S < 12) continue;
+      for (let py = cy - 1.0 * W; py <= cy + 0.5 * W; py += 0.05 * W) {
+        for (let px = cx + 0.35 * W; px <= cx + 1.15 * W; px += 0.05 * W) {
+          const x0 = Math.round(px - R.x - S / 2), y0 = Math.round(py - R.y - S / 2);
+          const x1 = x0 + S, y1 = y0 + S;
+          if (x0 < 0 || y0 < 0 || x1 > rw || y1 > rh) continue;
+          const mf = sum(M, x0, y0, x1, y1) / area(S);
+          if (mf < 0.55) continue;
+          const mean = sum(I, x0, y0, x1, y1) / area(S);
+          // 四角取样（5% 大小），看是否明显比内部暗
+          const cs = Math.max(2, Math.round(S * 0.06));
+          const corner = (cxp, cyp) => {
+            const a = Math.max(0, Math.min(rw - cs, Math.round(cxp)));
+            const b = Math.max(0, Math.min(rh - cs, Math.round(cyp)));
+            return sum(I, a, b, a + cs, b + cs) / (cs * cs);
+          };
+          let darker = 0;
+          for (const [ax, ay] of [[x0, y0], [x1 - cs, y0], [x0, y1 - cs], [x1 - cs, y1 - cs]]) {
+            if (corner(ax + R.x, ay + R.y) < mean - 28) darker++;
+          }
+          if (darker < 3) continue;
+          const score = mf * (darker / 4);
+          if (!best || score > best.score) best = { score, mf, mean, x: R.x + x0, y: R.y + y0, S };
+        }
+      }
+    }
+    return best;
+  }
+
+  /* 量子图标三种版式几何；逐个试，按“像不像一块牌子”打分挑最好的 */
+  const BADGE_GEOMS = [
+    { ox: 0.62, oy: -0.05, s: 0.46 },   // 列表 / 货物面板：格子右侧
+    { ox: 0.49, oy: -0.88, s: 0.46 },   // 文物容器卡片：格子右上
+    { ox: 0.82, oy: 0.01, s: 0.43 }     // 单件放大卡片：格子右侧偏上
+  ];
+
+  function badgeScore(cc) {
     const d = cc.canvas.getContext('2d').getImageData(0, 0, cc.w, cc.h).data;
-    const tot = cc.w * cc.h;
-    let fill = 0, mean = 0;
+    const n = cc.w * cc.h;
+    let light = 0, dark = 0, bright = 0, sum = 0;
     for (let i = 0; i < d.length; i += 4) {
       const hsv = toHSV(d[i], d[i + 1], d[i + 2]);
-      mean += hsv[2];
-      if ((hsv[2] > 200 && hsv[1] < 60) || hsv[2] < 45) fill++;   // 白牌或黑牌
+      sum += hsv[2];
+      if (hsv[2] > 85 && hsv[1] < 80) light++;     // 白牌 / 灰牌的底
+      if (hsv[2] < 45) dark++;                     // 黑牌的底
+      if (hsv[2] > 150) bright++;                  // 牌子里的图案（白字/黄字/彩点）
     }
-    mean /= tot;
-    const present = fill / tot >= 0.40;
-    const thumb = shrink(cc.canvas, 40).toDataURL('image/jpeg', 0.8);
+    return { light: light / n, dark: dark / n, bright: bright / n, mean: sum / n };
+  }
+
+  function readBadge(img, p) {
+    const W = p.w, cx = p.cx, cy = p.cy;
+    const lb = findLightBadge(img, p);
+    if (lb) {
+      const cc2 = crop(img, lb.x - lb.S * 0.02, lb.y - lb.S * 0.02, lb.x + lb.S * 1.02, lb.y + lb.S * 1.02);
+      if (cc2) {
+        return { present: true, side: lb.mean > 110 ? '光' : '暗',
+                 thumb: shrink(cc2.canvas, 48).toDataURL('image/jpeg', 0.85), sig: b64(gradSig(cc2.canvas)) };
+      }
+    }
+    let best = null;
+    for (const g of BADGE_GEOMS) {
+      const S = g.s * W;
+      const px = cx + g.ox * W, py = cy + g.oy * W;
+      // 先按放大 8% 的框取，再验证四角不像牌子（防止整块落进背景）
+      const cc = crop(img, px - S / 2, py - S / 2, px + S / 2, py + S / 2);
+      if (!cc) continue;
+      if (cc.w < 0.75 * S || cc.h < 0.75 * S) continue;        // 被图边裁掉的不算
+      const sc = badgeScore(cc);
+      if (!best || sc.light + sc.dark * 0.6 > best.score) best = { score: sc.light + sc.dark * 0.6, sc, cc };
+    }
+    if (!best) return { present: false, side: null, thumb: null, sig: '' };
+    const sc = best.sc;
+    // 亮牌：底色占大头；黑牌：底色深但牌里有亮图案；纯背景两者都不满足
+    const present = sc.light >= 0.55 || (sc.dark >= 0.55 && sc.bright >= 0.06);
+    const thumb = shrink(best.cc.canvas, 48).toDataURL('image/jpeg', 0.85);
     let sig = '';
-    if (present) {
-      // 梯度方向签名：与底色明暗（白牌/黑牌）无关
-      const g16 = gradSig(cc.canvas);
-      sig = b64(g16);
-    }
-    return { present, side: mean > 110 ? '光' : '暗', thumb, sig };
+    if (present) sig = b64(gradSig(best.cc.canvas));
+    return { present, side: sc.mean > 110 ? '光' : '暗', thumb, sig };
   }
 
   /* 16x16 梯度幅值签名，归一化到 0..255（与底色明暗无关） */
