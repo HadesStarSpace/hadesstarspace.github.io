@@ -467,26 +467,27 @@ const REC = (() => {
     { minS: 140, maxS: 420 }
   ];
   function detectPlates(imgData) {
-    let boxes = [];
+    // 每个尺度各跑一遍，取“找到格子最多”的那个尺度当主结果（不同尺度混着并会冒出假格子）
+    let best = null, bestN = 0, runnerUp = null;
     for (const sc of PLATE_SCALES) {
       const got = findPlates(imgData, { minS: sc.minS, maxS: sc.maxS, maxN: 40 });
-      for (const b of got) {
-        const dup = boxes.some(k => Math.abs(b.cx - k.cx) < 0.55 * Math.max(b.w, k.w) &&
-                                   Math.abs(b.cy - k.cy) < 0.55 * Math.max(b.h, k.h));
-        if (!dup) boxes.push(b);
-      }
+      if (got.length > bestN) {
+        if (best) runnerUp = best;
+        best = got; bestN = got.length;
+      } else if (got.length) runnerUp = runnerUp || got;
     }
-    // 去掉互相套住的（同一格被不同尺度各报一次，保留大的）
-    boxes.sort((a, b) => b.w * b.h - a.w * a.h);
-    const keep = [];
-    for (const b of boxes) {
-      const inside = keep.some(k => {
-        const dx = Math.abs(b.cx - k.cx), dy = Math.abs(b.cy - k.cy);
-        return dx < 0.5 * k.w && dy < 0.5 * k.h;
-      });
-      if (!inside) keep.push(b);
-    }
-    return keep;
+    if (!best) return [];
+    // 第二尺度里尺寸明显不同（大件/小件混排）且不和主结果重叠的，也收进来
+    const extra = (runnerUp || []).filter(b => {
+      const overlap = best.some(k => Math.abs(b.cx - k.cx) < 0.6 * Math.max(b.w, k.w) &&
+                                    Math.abs(b.cy - k.cy) < 0.6 * Math.max(b.h, k.h));
+      if (overlap) return false;
+      const med = best.slice().sort((p, q) => p.w - q.w)[Math.floor(best.length / 2)].w;
+      return b.w > 1.8 * med || b.w < 0.55 * med;
+    });
+    const out = best.concat(extra);
+    out.sort((a, b) => a.cy - b.cy || a.cx - b.cx);
+    return out;
   }
 
   /* 量子图标三种版式几何；逐个试，按“像不像一块牌子”打分挑最好的 */
