@@ -319,9 +319,6 @@ function renderMine() {
   const arts = S.artifacts.filter(a => a.owner === ME.id);
   $('#mineList').innerHTML = arts.length ? arts.map(a => artCard(a, {
     hideOwner: true, actions: `
-      <span style="display:none">
-
-      </select>
       <button class="btn ghost mini" onclick="openEdit('${a.id}')">改</button>
       <button class="btn ghost mini" onclick="delArt('${a.id}')">删</button>`
   })).join('') : '<div class="empty">还没有条目，去「上传」</div>';
