@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>量子神器交换站</title>
-<link rel="stylesheet" href="style.css?v=20261124CLDO">
+<title>交换站</title>
+<link rel="stylesheet" href="style.css?v=20261125CLDP">
 </head>
 <body>
 <div class="wrap">
 <header>
-  <h1>量子<span>神器</span>交换站</h1>
-  <div class="sub">截图自动识别 · 集团成员共用 · 数据存在 GitHub</div>
+  <h1>交换站</h1>
+  <div class="sub"></div>
   <div class="stats">
-    <div class="stat"><b id="sTotal">0</b><i>已登记神器</i></div>
+    <div class="stat"><b id="sTotal">0</b><i>已登记条目</i></div>
     <div class="stat"><b id="sList">0</b><i>可交换</i></div>
     <div class="stat"><b id="sPlayers">0</b><i>成员</i></div>
   </div>
@@ -26,22 +26,22 @@
       <button class="btn ghost mini hidden" id="logoutBtn" onclick="logout()">退出</button>
     </div>
   </div>
-  <div class="muted" id="meHint" style="margin-top:6px">登录后才能上传、挂牌和发交换意向。</div>
+  <div class="muted" id="meHint" style="margin-top:6px"></div>
 </div>
 
 <div class="tabs" id="tabs">
-  <div class="tab on" data-v="upload">上传入库</div>
-  <div class="tab" data-v="market">交换市场</div>
-  <div class="tab" data-v="match">需求匹配</div>
-  <div class="tab" data-v="inbox">意向箱</div>
+  <div class="tab on" data-v="upload">上传</div>
+  <div class="tab" data-v="market">市场</div>
+  <div class="tab" data-v="match">匹配</div>
+  <div class="tab" data-v="inbox">意向</div>
   <div class="tab" data-v="mine">我的</div>
 </div>
 
 <!-- ========== 上传 ========== -->
 <div class="view" id="v-upload">
   <div class="card">
-    <h3>上传「文物容器」截图</h3>
-    <div class="muted" style="margin-bottom:10px">可一次选多张截图，谁传的都行、分辨率也不用管。传到云端跑 AI 文字识别，一般 25~45 秒出结果；结果先给你核对，确认后才入库，相同的会自动合并成 ×N。</div>
+    <h3>上传截图</h3>
+    
     <input type="file" id="file" accept="image/*" multiple style="display:none">
     <button class="btn" id="pickBtn">选择截图</button>
     <span class="muted" id="upHint" style="margin-left:8px"></span>
@@ -56,7 +56,7 @@
     </div>
   </div>
   <div class="card">
-    <h3>识别记录</h3>
+    <h3>记录</h3>
     <div id="notices"></div>
   </div>
 </div>
@@ -77,11 +77,11 @@
 <!-- ========== 匹配 ========== -->
 <div class="view hidden" id="v-match">
   <div class="card">
-    <h3>谁有我想要的 <span class="muted">（按我的需求自动匹配）</span></h3>
+    <h3>谁有我要的</h3>
     <div id="wantList"></div>
   </div>
   <div class="card">
-    <h3>我能满足谁 <span class="muted">（我的可交换神器 · 别人的需求）</span></h3>
+    <h3>我能满足谁</h3>
     <div id="offerList"></div>
   </div>
 </div>
@@ -98,18 +98,18 @@
     <h3>发布需求</h3>
     <div class="grid3">
       <div><label class="f">类型</label><select id="nType"></select></div>
-      <div style="grid-column:1/-1"><label class="f">量子强化（按图标挑，不写名字）</label><div id="nIconBar" class="iconbar"></div></div>
+      <div style="grid-column:1/-1"><label class="f">强化图标</label><div id="nIconBar" class="iconbar"></div></div>
       <div><label class="f">光/暗</label><select id="nSide"><option value="">不限</option><option>光</option><option>暗</option></select></div>
     </div>
     <div class="grid2" style="margin-top:2px">
       <div><label class="f">最低等级</label><input id="nLv" type="number" value="11" min="0" max="20"></div>
       <div><label class="f">最低加成 %</label><input id="nBonus" type="number" value="360" step="1"></div>
     </div>
-    <label class="f">备注</label><input id="nNote" placeholder="例如：愿意用 2 件 358 换 1 件 360">
+    <label class="f">备注</label><input id="nNote" placeholder="备注">
     <div style="margin-top:10px"><button class="btn" onclick="postNeed()">发布需求</button></div>
   </div>
   <div class="card">
-    <h3>我的联系方式 <span class="muted" style="font-size:12px">（填了别人才能在市场/交换意向里找到你）</span></h3>
+    <h3>我的联系方式</h3>
     <div class="grid3">
       <div><label class="f">QQ号</label><input id="cQQ" placeholder="例如 12345678"></div>
       <div><label class="f">Discord</label><input id="cDiscord" placeholder="例如 yourname#1234"></div>
@@ -118,7 +118,7 @@
     <div style="margin-top:10px"><button class="btn" onclick="saveContact()">保存联系方式</button>
       <span class="muted" id="cHint" style="font-size:12px;margin-left:8px"></span></div>
   </div>
-  <div class="card"><h3>我的神器 <span style="float:right"><button class="btn ghost mini" onclick="addManual()">+ 手动添加</button> <button class="btn ghost mini" onclick="clearMine()">一键清空</button></span></h3><div id="mineList"></div></div>
+  <div class="card"><h3>我的条目 <span style="float:right"><button class="btn ghost mini" onclick="addManual()">+ 手动添加</button> <button class="btn ghost mini" onclick="clearMine()">一键清空</button></span></h3><div id="mineList"></div></div>
   <div class="card"><h3>我的需求</h3><div id="myNeedList"></div></div>
 </div>
 </div>
@@ -126,7 +126,7 @@
 <div class="toast" id="toast"></div>
 
 <dialog id="dlgTrade">
-  <h3 style="margin:0 0 10px;font-size:15px">发起交换意向</h3>
+  <h3 style="margin:0 0 10px;font-size:15px">发起意向</h3>
   <div id="dlgTarget" class="muted" style="margin-bottom:10px"></div>
   <label class="f">我拿什么换（可选）</label>
   <select id="dlgGive"><option value="">不指定</option></select>
@@ -139,14 +139,14 @@
 </dialog>
 
 <dialog id="dlgEdit">
-  <h3 style="margin:0 0 10px;font-size:15px">修正这件神器</h3>
+  <h3 style="margin:0 0 10px;font-size:15px">修正条目</h3>
   <label class="f">类型</label><select id="eType"></select>
   <div class="grid2">
     <div><label class="f">等级</label><input id="eLevel" type="number"></div>
     <div><label class="f">加成 %</label><input id="eBonus" type="number"></div>
   </div>
   <div class="grid2">
-    <div><label class="f">量子强化</label><div id="eIcon"></div></div>
+    <div><label class="f">强化图标</label><div id="eIcon"></div></div>
     <div><label class="f">光/暗</label><select id="eSide"><option value="">—</option><option>光</option><option>暗</option></select></div>
   </div>
   <div class="row" style="margin-top:12px;justify-content:flex-end">
@@ -171,7 +171,7 @@
     <label class="f">账号</label><input id="rLogin" autocomplete="username" placeholder="字母数字，登录用">
     <label class="f">密码</label><input id="rPw" type="password" autocomplete="new-password" placeholder="至少 6 位">
     <label class="f">再输一次密码</label><input id="rPw2" type="password" autocomplete="new-password">
-    <div class="muted" style="margin-top:6px">名字已在名单里的（忆灵 / CannonM / 洋芋 / 龙神天 等），注册时直接填自己的游戏名即可认领原有神器。</div>
+    <div class="muted" style="margin-top:6px">名字已在名单里的（忆灵 / CannonM / 洋芋 / 龙神天 等），注册时直接填自己的游戏名即可认领原有条目。</div>
   </div>
   <div class="row" style="margin-top:14px;justify-content:flex-end">
     <button class="btn ghost mini" onclick="dlgAuth.close()">取消</button>
@@ -180,10 +180,10 @@
 </dialog>
 
 <script src="tess/tesseract.min.js"></script>
-<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">云端 AI 识别 v2026.11.24.CLDO</div>
+<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">云端 AI 识别 v2026.11.25.CLDP</div>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
-<script src="recog.js?v=20261124CLDO"></script>
-<script src="ocr_ai.js?v=20261124CLDO"></script>
-<script src="app.js?v=20261124CLDO"></script>
+<script src="recog.js?v=20261125CLDP"></script>
+<script src="ocr_ai.js?v=20261125CLDP"></script>
+<script src="app.js?v=20261125CLDP"></script>
 </body>
 </html>

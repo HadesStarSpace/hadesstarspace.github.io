@@ -1,4 +1,4 @@
-/* 量子神器交换站 —— GitHub Pages 静态版
+/* 交换站 —— GitHub Pages 静态版
  * 数据：仓库根 data.json（读走 API，写走 Contents API）
  * 识别：上传截图到 inbox/，由 GitHub Actions 跑 Python 识别后写回 data.json
  */
@@ -32,7 +32,7 @@ let dlgArtifact = null, editing = null, polling = false;
 
 function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('on'); setTimeout(() => e.classList.remove('on'), 2200); }
 const typeName = k => (TYPES.find(t => t.key === k) || {}).name || '未知';
-/* ---- 量子强化：只按图标认，不给名字 ---- */
+/* ---- 强化图标：只按图标认，不给名字 ---- */
 const iconOf = id => ((S.icons || {})[id]) || null;
 const ICON_DUP = 0.13;                       // 模板比对距离上限
 const ICON_SOFT = 0.18;                      // 配合亮度校验后的放宽阈值
@@ -42,13 +42,13 @@ function iconImg(id, size) {
   const s2 = size || 18;
   return `<img src="${ic.thumb}" style="height:${s2}px;width:${s2}px;object-fit:cover;border-radius:4px;vertical-align:-${Math.round(s2 * 0.2)}px">`;
 }
-function iconChip(id) { return id ? `<span class="chip" title="量子强化">${iconImg(id, 14)}</span>` : ''; }
+function iconChip(id) { return id ? `<span class="chip" title="强化图标">${iconImg(id, 14)}</span>` : ''; }
 function findIconBySig(d, sig, lum, type) {
   if (!sig || !d.icons) return null;
   let best = null;
   for (const [id, ic] of Object.entries(d.icons)) {
     if (!ic || !ic.sig) continue;
-    if (ic.type && type && ic.type !== type) continue;   // 不同种类的神器图标不混用
+    if (ic.type && type && ic.type !== type) continue;   // 不同种类的条目图标不混用
     let dist;
     try { dist = REC._test.sigAlign(REC._unb64(ic.sig), REC._unb64(sig)); } catch (e) { continue; }
     // 亮度再卡一道：同图标两次截图亮度一致，不同图标（灰 vs 深色）亮度差得开
@@ -209,12 +209,12 @@ async function load() {
 
 let needIcon = '';
 
-/* 量子技能筛选：下拉菜单，菜单项就是图标（按图标认，不用名字） */
+/* 强化图标筛选：下拉菜单，菜单项就是图标（按图标认，不用名字） */
 function iconDDHTML(sel, labelAll) {
   const icons = Object.entries(S.icons || {});
   const cur = (sel && S.icons && S.icons[sel]) ? S.icons[sel] : null;
   const head = cur
-    ? `${cur.thumb ? `<img src="${cur.thumb}">` : iconImg(sel, 22)}<span>已选：量子技能 ${cur.n ? '×' + cur.n : ''}</span>`
+    ? `${cur.thumb ? `<img src="${cur.thumb}">` : iconImg(sel, 22)}<span>已选：强化图标 ${cur.n ? '×' + cur.n : ''}</span>`
     : `<span>${labelAll}</span>`;
   const items = [`<button type="button" class="icondd-item ${sel ? '' : 'on'}" data-v=""><span>${labelAll}</span></button>`]
     .concat(icons.map(([id, ic]) => {
@@ -237,7 +237,7 @@ document.addEventListener('click', () => document.querySelectorAll('.icondd-pane
 
 function renderFilterIcons() {
   const f = $('#fModuleBar');
-  if (f) { f.innerHTML = iconDDHTML(filterIcon, '全部量子技能'); bindIconDD(f, v => { filterIcon = v; renderFilterIcons(); renderMarket(); }); }
+  if (f) { f.innerHTML = iconDDHTML(filterIcon, '全部强化图标'); bindIconDD(f, v => { filterIcon = v; renderFilterIcons(); renderMarket(); }); }
 }
 
 function renderIconPickers() {
@@ -296,7 +296,7 @@ function artCard(a, opts = {}) {
     <div class="hex">${hexSVG(color, a.level)}${badgeEl}</div>
     <div class="info">
       <div class="t1">${typeName(a.type_key)} ${lv}${bonus}${qty}${side}</div>
-      <div class="t2">${mod || '无量子强化'}${a.status === 'reserved' ? ' · 交易中' : ''}</div>
+      <div class="t2">${mod || '无强化图标'}${a.status === 'reserved' ? ' · 交易中' : ''}</div>
       ${ownerLine}
     </div>
     <div class="row" style="flex:0 0 auto">${opts.actions || ''}</div>
@@ -317,7 +317,7 @@ function renderMarket() {
   $('#marketList').innerHTML = list.length
     ? list.sort((a, b) => (b.level || 0) - (a.level || 0)).map(a =>
       artCard(a, { actions: `<button class="btn mini" onclick="openTrade('${a.id}')">交换</button>` })).join('')
-    : '<div class="empty">还没有可交换的神器，去「上传入库」把神器标记成「可交换」</div>';
+    : '<div class="empty">还没有可交换的条目，去「上传入库」把条目标记成「可交换」</div>';
 }
 
 /* 匹配算法（与本地版一致） */
@@ -360,7 +360,7 @@ function renderMatch() {
     <div class="tcard">
       <div class="lenflex"><span class="muted">${x.owner} 想要：${needLabel(x.n)}</span><span class="pill">匹配 ${x.sc}</span></div>
       ${artCard(x.a, { hideOwner: true })}
-    </div>`).join('') : '<div class="empty">暂无：把神器标成「可交换」，或等别人发需求</div>';
+    </div>`).join('') : '<div class="empty">暂无：把条目标成「可交换」，或等别人发需求</div>';
 }
 
 function tradeRow(t, mine) {
@@ -373,7 +373,7 @@ function tradeRow(t, mine) {
   return `<div class="tcard">
     <div class="lenflex"><span class="muted">${mine ? ('来自 ' + playerName(t.from)) : ('发给 ' + playerName(t.to))} · ${label}</span>
       <span class="pill">${new Date(t.t * 1000).toLocaleDateString('zh-CN')}</span></div>
-    ${a ? artCard(a) : '<div class="muted">神器已删除</div>'}
+    ${a ? artCard(a) : '<div class="muted">条目已删除</div>'}
     ${t.give && S.artifacts.find(x => x.id === t.give) ? `<div class="muted" style="margin-top:4px">对方拿：${artCard(S.artifacts.find(x => x.id === t.give), { hideOwner: true })}</div>` : ''}
     ${t.msg ? `<div class="muted" style="margin-top:6px">留言：${t.msg}</div>` : ''}
     <div class="row" style="margin-top:8px;justify-content:flex-end">${acts}</div>
@@ -407,7 +407,7 @@ function renderMine() {
       </select>
       <button class="btn ghost mini" onclick="openEdit('${a.id}')">改</button>
       <button class="btn ghost mini" onclick="delArt('${a.id}')">删</button>`
-  })).join('') : '<div class="empty">还没有神器，去「上传入库」</div>';
+  })).join('') : '<div class="empty">还没有条目，去「上传入库」</div>';
   const needs = S.needs.filter(n => n.player === ME.id && n.status === 'open');
   $('#myNeedList').innerHTML = needs.length ? needs.map(n => `
     <div class="tcard"><div class="lenflex">
@@ -421,15 +421,15 @@ async function clearMine() {
   if (!ME) { toast('请先登录'); openAuth(); return; }
   const mine = S.artifacts.filter(a => a.owner === ME.id);
   const total = mine.reduce((s, a) => s + (a.qty || 1), 0);
-  if (!mine.length) { toast('你名下没有神器'); return; }
-  if (!confirm(`确定清空你名下的全部神器？共 ${total} 件（${mine.length} 条），删掉就没了。`)) return;
+  if (!mine.length) { toast('你名下没有条目'); return; }
+  if (!confirm(`确定清空你名下的全部条目？共 ${total} 件（${mine.length} 条），删掉就没了。`)) return;
   await mutate(d => {
     d.artifacts = (d.artifacts || []).filter(a => a.owner !== ME.id);
     d.notices = (d.notices || []).concat([{
       t: Math.floor(Date.now() / 1000), player: ME.name, img: '',
-      note: `清空了自己名下的 ${total} 件神器`
+      note: `清空了自己名下的 ${total} 件条目`
     }]).slice(-30);
-  }, `清空${ME.name}名下神器`);
+  }, `清空${ME.name}名下条目`);
   toast('已清空');
   await load();
 }
@@ -553,7 +553,7 @@ async function commitItems(items) {
       t: Math.floor(Date.now() / 1000), player: ME.name, img: '',
       note: `AI 识别入库 ${rows.length} 件（同款已合并）`
     }]).slice(-30);
-  }, `入库 ${rows.length} 件神器`);
+  }, `入库 ${rows.length} 件条目`);
   return { total: rows.length, added };
 }
 
@@ -602,7 +602,7 @@ async function cloudRecognize(files) {
       plate: it.plate ? IMG_BASE + it.plate : '', badge_img: it.badge_img ? IMG_BASE + it.badge_img : '',
       badge_present: !!(it.badge_img || it.sig), module: it.module || ''
     }));
-  if (!items.length) throw new Error('云端没认出神器');
+  if (!items.length) throw new Error('云端没认出条目');
   return { items, secs };
 }
 
@@ -628,7 +628,7 @@ $('#file').onchange = async e => {
       $('#upHint').textContent = '云端没成功，改用本地识别…';
       const items = await aiLocalRecognize(files);
       $('#file').value = '';
-      if (!items.length) throw new Error('没认到神器，换张图试试');
+      if (!items.length) throw new Error('没认到条目，换张图试试');
       pendingSlots = items.map(s => Object.assign({ status: 'list', side: s.side || '暗' }, s));
       $('#resHint').textContent = `本地认出 ${items.length} 件。核对无误就点「确认入库」。`;
       renderResult();
@@ -666,7 +666,7 @@ function renderResult() {
         <div><label class="f">等级</label><input data-i="${i}" data-k="level" type="number" value="${s.level == null ? '' : s.level}"></div>
         <div><label class="f">加成%</label><input data-i="${i}" data-k="bonus" type="number" value="${s.bonus == null ? '' : s.bonus}"></div>
       </div>
-      <label class="f">量子强化${s.badge_present ? (s.module ? '（同款）' : '（新）') : '（无）'}</label>
+      <label class="f">强化图标${s.badge_present ? (s.module ? '（同款）' : '（新）') : '（无）'}</label>
       <div class="iconcell">${s.badge_present && s.badge_img ? `<img src="${s.badge_img}">` : '<span class="muted" style="font-size:12px">无</span>'}</div>
       <div class="grid2" style="margin-top:4px">
         <div><label class="f">光/暗</label><select data-i="${i}" data-k="side">
@@ -717,7 +717,7 @@ $('#commitBtn').onclick = async () => {
         t: Math.floor(Date.now() / 1000), player: ME.name, img: '',
         note: `识别入库 ${items.length} 件（同款已合并）`
       }]).slice(-30);
-    }, `入库 ${items.length} 件神器`);
+    }, `入库 ${items.length} 件条目`);
     toast(`已入库 ${items.length} 件${added < items.length ? `，合并为 ${added} 条` : ''}`);
     clearResult();
     await load();
@@ -738,24 +738,24 @@ async function addManual() {
     t: Math.floor(Date.now() / 1000)
   };
   try {
-    await mutate(d => { d.artifacts = (d.artifacts || []).concat([rec]); }, '手动添加神器');
+    await mutate(d => { d.artifacts = (d.artifacts || []).concat([rec]); }, '手动添加条目');
     await load();
     openEdit(rec.id);
   } catch (e) { toast('添加失败：' + e.message); }
 }
 
-/* ---------------- 神器编辑 ---------------- */
+/* ---------------- 条目编辑 ---------------- */
 async function setStatus(id, v) {
   try {
-    await mutate(d => { const a = d.artifacts.find(x => x.id === id); if (a) a.status = v; }, '切换神器状态');
+    await mutate(d => { const a = d.artifacts.find(x => x.id === id); if (a) a.status = v; }, '切换条目状态');
     await load();
   } catch (e) { toast('失败：' + e.message); }
 }
 
 async function delArt(id) {
-  if (!confirm('删除这件神器记录？')) return;
+  if (!confirm('删除这件条目记录？')) return;
   try {
-    await mutate(d => { d.artifacts = d.artifacts.filter(a => a.id !== id); }, '删除神器');
+    await mutate(d => { d.artifacts = d.artifacts.filter(a => a.id !== id); }, '删除条目');
     await load();
   } catch (e) { toast('失败：' + e.message); }
 }
@@ -773,7 +773,7 @@ function openEdit(id) {
   $('#eType').innerHTML = TYPES.map(t => `<option value="${t.key}" ${t.key === editing.type_key ? 'selected' : ''}>${t.name}</option>`).join('');
   $('#eIcon').innerHTML = editing.module
     ? `${iconImg(editing.module, 40)} <button class="btn ghost mini" id="eIconClear">清除图标</button>`
-    : `<span class="muted" style="font-size:12px">无量子强化</span>`;
+    : `<span class="muted" style="font-size:12px">无强化图标</span>`;
   if ($('#eIconClear')) $('#eIconClear').onclick = () => { editing._clearIcon = true; $('#eIcon').innerHTML = '<span class="muted" style="font-size:12px">提交后清除</span>'; };
   $('#eSide').value = editing.side || '';
   $('#eLevel').value = editing.level || '';
@@ -798,7 +798,7 @@ async function saveEdit() {
         // 清除图标时把它从图标库减一个计数（不删库，避免误伤别人同款）
         for (const ic of Object.values(d.icons)) { if (ic.sig === x.sig && ic.n > 0) ic.n--; }
       }
-    }, '修正神器 ' + a.id);
+    }, '修正条目 ' + a.id);
     $('#dlgEdit').close();
     toast('已保存');
     await load();
@@ -830,12 +830,12 @@ function openTrade(aid) {
   if (!ME) { toast('请先登录'); openAuth(); return; }
   dlgArtifact = S.artifacts.find(a => a.id === aid);
   if (!dlgArtifact) return;
-  if (dlgArtifact.owner === ME.id) { toast('这是你自己的神器'); return; }
+  if (dlgArtifact.owner === ME.id) { toast('这是你自己的条目'); return; }
   $('#dlgTarget').innerHTML = `${typeName(dlgArtifact.type_key)} ${dlgArtifact.level ? 'Lv' + dlgArtifact.level : ''} ${dlgArtifact.bonus ? '+' + dlgArtifact.bonus + '%' : ''}
     ${dlgArtifact.module ? iconChip(dlgArtifact.module) : ''} ${dlgArtifact.side || ''} · 持有者 ${playerName(dlgArtifact.owner)}${contactOf(dlgArtifact.owner) ? `<div class="muted" style="margin-top:4px">联系：${contactOf(dlgArtifact.owner)}</div>` : '<div class="muted" style="margin-top:4px">对方还没填联系方式</div>'}`;
   const mine = S.artifacts.filter(a => a.owner === ME.id && a.status !== 'reserved');
   $('#dlgGive').innerHTML = '<option value="">不指定</option>'
-    + mine.map(a => `<option value="${a.id}">${typeName(a.type_key)} ${a.level ? 'Lv' + a.level : ''} ${a.bonus ? '+' + a.bonus + '%' : ''} ${a.module ? '[有量子强化] ' : ''}${a.side || ''}${(a.qty || 1) > 1 ? ' ×' + a.qty : ''}</option>`).join('');
+    + mine.map(a => `<option value="${a.id}">${typeName(a.type_key)} ${a.level ? 'Lv' + a.level : ''} ${a.bonus ? '+' + a.bonus + '%' : ''} ${a.module ? '[有强化图标] ' : ''}${a.side || ''}${(a.qty || 1) > 1 ? ' ×' + a.qty : ''}</option>`).join('');
   $('#dlgMsg').value = '';
   $('#dlgSend').onclick = async () => {
     const give = $('#dlgGive').value || null;
@@ -974,7 +974,7 @@ async function doReg() {
     AUTH = { id: result.id, login: result.login, name: result.name };
     localStorage.setItem(AUTH_KEY, JSON.stringify(AUTH));
     $('#dlgAuth').close();
-    toast('注册成功，' + result.name + (result.claimed ? '（已认领原有神器）' : ''));
+    toast('注册成功，' + result.name + (result.claimed ? '（已认领原有条目）' : ''));
     await load();
   } catch (e) { fail(e); } finally { $('#authGo').disabled = false; }
 }
