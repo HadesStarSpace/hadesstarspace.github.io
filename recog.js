@@ -90,8 +90,12 @@ const REC = (() => {
         }
       }
       const w = maxX - minX + 1, h = maxY - minY + 1;
-      if (w < minS || w > maxS || h < minS || h > maxS) continue;
-      if (area < 1250 || area < 0.3 * w * h) continue;
+      // 贴图边的半截格子也收（截图上下被裁掉时常见）
+      const edge = minX <= 1 || minY <= 1 || maxX >= sw - 2 || maxY >= sh - 2;
+      const okSize = (w >= minS && w <= maxS && h >= minS && h <= maxS)
+        || (edge && w >= 0.55 * minS && h >= 0.55 * minS && w <= maxS * 1.6 && h <= maxS * 1.6);
+      if (!okSize) continue;
+      if (area < 900 || area < 0.28 * w * h) continue;
       boxes.push({ cx: (minX + maxX + 1) / 2 * 2, cy: (minY + maxY + 1) / 2 * 2, w: w * 2, h: h * 2, area });
     }
     boxes.sort((a, b) => b.area - a.area);
@@ -456,6 +460,35 @@ const REC = (() => {
     return best;
   }
 
+  /* 多尺度找格子：一张图里可能同时有放大件和小件，单一尺寸窗口会漏 */
+  const PLATE_SCALES = [
+    { minS: 45, maxS: 110 },
+    { minS: 80, maxS: 220 },
+    { minS: 140, maxS: 420 }
+  ];
+  function detectPlates(imgData) {
+    let boxes = [];
+    for (const sc of PLATE_SCALES) {
+      const got = findPlates(imgData, { minS: sc.minS, maxS: sc.maxS, maxN: 40 });
+      for (const b of got) {
+        const dup = boxes.some(k => Math.abs(b.cx - k.cx) < 0.55 * Math.max(b.w, k.w) &&
+                                   Math.abs(b.cy - k.cy) < 0.55 * Math.max(b.h, k.h));
+        if (!dup) boxes.push(b);
+      }
+    }
+    // 去掉互相套住的（同一格被不同尺度各报一次，保留大的）
+    boxes.sort((a, b) => b.w * b.h - a.w * a.h);
+    const keep = [];
+    for (const b of boxes) {
+      const inside = keep.some(k => {
+        const dx = Math.abs(b.cx - k.cx), dy = Math.abs(b.cy - k.cy);
+        return dx < 0.5 * k.w && dy < 0.5 * k.h;
+      });
+      if (!inside) keep.push(b);
+    }
+    return keep;
+  }
+
   /* 量子图标三种版式几何；逐个试，按“像不像一块牌子”打分挑最好的 */
   const BADGE_GEOMS = [
     { ox: 0.62, oy: -0.05, s: 0.46 },   // 列表 / 货物面板：格子右侧
@@ -572,8 +605,8 @@ const REC = (() => {
     full.getContext('2d').drawImage(img, 0, 0);
     const ctx = { canvas: full, width: img.width, height: img.height };
     const imgData = { canvas: full, width: img.width, height: img.height, data: full.getContext('2d').getImageData(0, 0, img.width, img.height).data };
-    let plates = findPlates(imgData);
-    if (!plates.length) plates = findPlates(imgData, { minS: 60, maxS: 420, maxN: 4 });   // 放大/单件截图
+    let plates = detectPlates(imgData);
+    if (!plates.length) plates = findPlates(imgData, { minS: 60, maxS: 420, maxN: 4 });   // 兜底：放大/单件截图
     if (!plates.length) return { ok: false, note: '没找到神器格子，截一张能看清神器底板的图再试' };
     if (plates.length > 12) plates = plates.slice(0, 12);
     const slots = [];
@@ -612,5 +645,5 @@ const REC = (() => {
     });
   }
 
-  return { recognize, ensureWorker, setTemplates, matchModule, _unb64: unb64, _test: { findPlates, classify, readBonus, readLevel, readBadge, sigDistance, toHSV } };
+  return { recognize, ensureWorker, setTemplates, matchModule, _unb64: unb64, _test: { findPlates, detectPlates, classify, readBonus, readLevel, readBadge, sigDistance, toHSV } };
 })();

@@ -350,17 +350,26 @@ $('#file').onchange = async e => {
   $('#resultCard').classList.add('hidden');
   try {
     const t0 = performance.now();
-    const res = await REC.recognize(f, (i, n) => { $('#upHint').textContent = `识别中… ${i + 1}/${n}`; });
-    if (!res.ok) { $('#upHint').textContent = ''; toast(res.note); return; }
-    pendingSlots = res.slots.map(s => ({
+    pendingSlots = [];
+    let fail = '';
+    const files = Array.from($('#file').files || []);
+    for (let fi = 0; fi < files.length; fi++) {
+      const tag = files.length > 1 ? `第 ${fi + 1}/${files.length} 张 · ` : '';
+      const res = await REC.recognize(files[fi], (i, n) => {
+        $('#upHint').textContent = `${tag}识别中… ${i + 1}/${n}`;
+      });
+      if (!res.ok) { fail = tag + res.note; continue; }
+      pendingSlots = pendingSlots.concat(res.slots.map(s => ({
       type_key: s.type_key || '', level: s.level, bonus: s.bonus,
       side: s.side || '', module: s.module || '', status: 'have',
       plate: s.plate, badge_img: s.badge_img, badge_present: !!s.badge_present,
-      sig: s.sig || '', slot: s.slot
-    }));
+        sig: s.sig || '', slot: s.slot
+      })));
+    }
+    if (!pendingSlots.length) { $('#upHint').textContent = ''; toast(fail || '没认出神器'); return; }
     renderResult();
     const ms = Math.round(performance.now() - t0);
-    $('#upHint').textContent = `识别完成 ${pendingSlots.length} 件 · ${ms} ms`;
+    $('#upHint').textContent = `识别完成 ${pendingSlots.length} 件 · ${files.length} 张图 · ${ms} ms`;
   } catch (err) {
     $('#upHint').textContent = '';
     toast('识别失败：' + err.message);
