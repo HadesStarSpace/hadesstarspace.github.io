@@ -271,14 +271,13 @@ const REC = (() => {
   /* ---------- 识别单个槽位 ---------- */
   async function readBonus(img, p) {
     const W = p.w, cx = p.cx, cy = p.cy;
-    const regions = [
-      [cx - 0.75 * W, cy - 2.05 * W, cx + 0.90 * W, cy - 1.02 * W],   // 容器：药丸在格子上方
-      [cx - 0.10 * W, cy - 0.12 * W, cx + 1.05 * W, cy + 0.52 * W],   // 货物/列表：药丸在右下
-      [cx - 0.20 * W, cy + 0.55 * W, cx + 0.95 * W, cy + 1.20 * W],   // 药丸在正下方
-      [cx - 1.90 * W, cy - 0.30 * W, cx - 0.25 * W, cy + 0.55 * W]    // 药丸在左侧
-    ];
-    const cands = [];
-    for (const box of regions) {
+    const main = W > 170
+      ? [cx - 0.10 * W, cy - 0.12 * W, cx + 1.05 * W, cy + 0.52 * W]    // 列表面板：药丸在格子右下
+      : [cx - 0.80 * W, cy - 1.75 * W, cx + 0.95 * W, cy - 0.90 * W];   // 容器卡片：药丸在格子上方
+    const alt = W > 170
+      ? [cx - 0.20 * W, cy + 0.50 * W, cx + 0.95 * W, cy + 1.15 * W]
+      : [cx - 0.20 * W, cy + 0.60 * W, cx + 0.95 * W, cy + 1.25 * W];
+    for (const box of [main, alt]) {
       const b = brightestBox(img, box, 900);
       const cc = (b && b[2] / b[3] > 1.4 && b[2] / b[3] < 3.4)
         ? crop(img, b[0] - 3, b[1] - 3, b[0] + b[2] + 3, b[1] + b[3] + 3)
@@ -286,18 +285,15 @@ const REC = (() => {
       if (!cc) continue;
       const inner = crop(cc.canvas, cc.w * 0.10, cc.h * 0.08, cc.w * 0.92, cc.h * 0.92);
       if (!inner) continue;
-      for (const [psm, mode] of [[7, 'otsu'], [8, 'fixed'], [8, 'otsu']]) {
+      for (const [psm, mode] of [[7, 'otsu'], [8, 'fixed']]) {
         const t = await ocr(inner.canvas, psm, '0123456789+%', mode);
         const digits = t.replace(/\D/g, '');
         if (digits.length < 3) continue;
         const v = parseInt(digits.slice(0, 3), 10);
-        if (v >= 300 && v <= 400) cands.push(v);      // 神器加成基本都在 3xx%
+        if (v >= 300 && v <= 400) return v;
       }
     }
-    if (!cands.length) return null;
-    const freq = {};
-    for (const v of cands) freq[v] = (freq[v] || 0) + 1;
-    return +Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0];
+    return null;
   }
 
   async function readLevel(img, p) {
@@ -313,13 +309,11 @@ const REC = (() => {
       return null;
     };
     if (W > 170) {
-      // 货物/列表面板：等级在格子左侧同一行
       return await pick([cx - 3.6 * W, cy - 0.55 * W, cx - 0.75 * W, cy + 0.35 * W], [7, 6]);
     }
-    // 文物容器：等级在格子左下
-    const v = await pick([cx - 0.80 * W, cy + 0.86 * W, cx - 0.38 * W, cy + 1.32 * W], [10, 7, 8]);
+    const v = await pick([cx - 0.80 * W, cy + 0.86 * W, cx - 0.38 * W, cy + 1.32 * W], [10, 7]);
     if (v != null) return v;
-    return await pick([cx - 2.4 * W, cy - 1.05 * W, cx - 0.55 * W, cy - 0.15 * W], [7, 6]);
+    return await pick([cx - 2.4 * W, cy - 1.05 * W, cx - 0.55 * W, cy - 0.15 * W], [7]);
   }
 
   // 颜色→类型：按「圆点环带」的色相直方图判定，跳过泛光青色（hue 75~92）
@@ -399,27 +393,61 @@ const REC = (() => {
   }
   function readBadge(img, p) {
     const W = p.w, cx = p.cx, cy = p.cy;
-    const cc = crop(img, cx + 0.28 * W, cy - 1.26 * W, cx + 0.78 * W, cy - 0.80 * W);
+    const big = W > 170;                    // 列表面板图标在格子右侧；容器卡片图标在格子右上
+    const S = 0.46 * W;
+    const ox = big ? 0.62 : 0.49;
+    const oy = big ? -0.05 : -0.88;
+    const cc = crop(img, cx + ox * W - S / 2, cy + oy * W - S / 2, cx + ox * W + S / 2, cy + oy * W + S / 2);
     if (!cc) return { present: false, side: null, thumb: null, sig: '' };
-    const small = shrink(cc.canvas, 16);
-    const d = small.getContext('2d').getImageData(0, 0, 16, 16).data;
-    const g = new Float32Array(256);
-    let sum = 0, sum2 = 0, maxV = 0;
-    for (let i = 0, k = 0; i < 256; i++, k += 4) {
-      g[i] = 0.299 * d[k] + 0.587 * d[k + 1] + 0.114 * d[k + 2];
-      sum += g[i]; sum2 += g[i] * g[i]; if (g[i] > maxV) maxV = g[i];
+    const d = cc.canvas.getContext('2d').getImageData(0, 0, cc.w, cc.h).data;
+    const tot = cc.w * cc.h;
+    let fill = 0, mean = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const hsv = toHSV(d[i], d[i + 1], d[i + 2]);
+      mean += hsv[2];
+      if ((hsv[2] > 200 && hsv[1] < 60) || hsv[2] < 45) fill++;   // 白牌或黑牌
     }
-    const mean = sum / 256;
-    const sd = Math.sqrt(Math.max(0, sum2 / 256 - mean * mean));
+    mean /= tot;
+    const present = fill / tot >= 0.40;
     const thumb = shrink(cc.canvas, 40).toDataURL('image/jpeg', 0.8);
-    // 空槽位：几乎全黑、方差极小
-    const present = sd > 9 && maxV > 55;
-    const bytes = new Uint8Array(256);
-    for (let i = 0; i < 256; i++) {
-      const v = sd > 1 ? (g[i] - mean) / sd : 0;   // 归一化，抵消整体亮暗
-      bytes[i] = Math.max(0, Math.min(255, Math.round(128 + v * 48)));
+    let sig = '';
+    if (present) {
+      // 梯度方向签名：与底色明暗（白牌/黑牌）无关
+      const g16 = gradSig(cc.canvas);
+      sig = b64(g16);
     }
-    return { present, side: mean > 110 ? '光' : '暗', thumb, sig: present ? b64(bytes) : '' };
+    return { present, side: mean > 110 ? '光' : '暗', thumb, sig };
+  }
+
+  /* 16x16 梯度幅值签名，归一化到 0..255（与底色明暗无关） */
+  function gradSig(canvas) {
+    const t = shrink(canvas, 32);
+    const d = t.getContext('2d').getImageData(0, 0, 32, 32).data;
+    const g = new Float32Array(1024);
+    for (let i = 0, k = 0; i < 1024; i++, k += 4) g[i] = 0.299 * d[k] + 0.587 * d[k + 1] + 0.114 * d[k + 2];
+    const raw = new Float32Array(256);
+    let maxV = 0;
+    for (let y = 0; y < 16; y++) {
+      for (let x = 0; x < 16; x++) {
+        const bx = x * 2, by = y * 2;
+        let acc = 0;
+        for (let dy = 0; dy < 2; dy++) {
+          for (let dx = 0; dx < 2; dx++) {
+            const px = bx + dx, py = by + dy;
+            const i = py * 32 + px;
+            const gx = g[py * 32 + Math.min(31, px + 1)] - g[py * 32 + Math.max(0, px - 1)];
+            const gy = g[Math.min(31, py + 1) * 32 + px] - g[Math.max(0, py - 1) * 32 + px];
+            acc += Math.abs(gx) + Math.abs(gy);
+          }
+        }
+        raw[y * 16 + x] = acc / 4;
+        if (acc / 4 > maxV) maxV = acc / 4;
+      }
+    }
+    const out = new Uint8Array(256);
+    const scale = maxV > 1 ? 255 / maxV : 0;
+    for (let i = 0; i < 256; i++) out[i] = Math.round(raw[i] * scale);
+    return out;
   }
 
   /* 模板比对：模块名 → 若干 16x16 签名，取最小归一化距离 */
@@ -429,10 +457,10 @@ const REC = (() => {
     if (a.length !== b.length) return 9;
     let acc = 0;
     for (let i = 0; i < a.length; i++) {
-      const d = (a[i] - 128) / 48 - (b[i] - 128) / 48;
+      const d = (a[i] - b[i]) / 255;
       acc += d * d;
     }
-    return Math.sqrt(acc / a.length);            // 归一化 RMSE
+    return Math.sqrt(acc / a.length);            // 归一化 RMSE（0~1）
   }
   function matchModule(sigStr) {
     if (!TEMPLATES || !sigStr) return null;

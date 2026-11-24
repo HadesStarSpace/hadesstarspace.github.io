@@ -333,7 +333,8 @@ function renderResult() {
         <div><label class="f">等级</label><input data-i="${i}" data-k="level" type="number" value="${s.level == null ? '' : s.level}"></div>
         <div><label class="f">加成%</label><input data-i="${i}" data-k="bonus" type="number" value="${s.bonus == null ? '' : s.bonus}"></div>
       </div>
-      <label class="f">量子强化${s.module ? '（图标签名已匹配）' : (s.badge_present ? '（有图标，待标定）' : '（无图标）')}</label><select data-i="${i}" data-k="module">${mOpts(s.module)}</select>
+      <label class="f">量子强化${s.module ? '（图标签名已匹配）' : (s.badge_present ? '（有图标，选一次就会记住）' : '（无图标）')}${
+        s.badge_img ? `<img src="${s.badge_img}" style="height:18px;width:18px;object-fit:cover;border-radius:4px;vertical-align:-3px;margin-left:4px">` : ''}</label><select data-i="${i}" data-k="module">${mOpts(s.module)}</select>
       <div class="grid2" style="margin-top:4px">
         <div><label class="f">光/暗</label><select data-i="${i}" data-k="side">
           <option value="" ${!s.side ? 'selected' : ''}>—</option>
