@@ -26,14 +26,20 @@
       "name": "暗物质矿物粉碎",
       "type": "采矿",
       "tone": "暗",
-      "img": "img/bp/crush_dark.png"
+      "img": "img/bp/crush_dark.png",
+      "alts": [
+        "img/bp/crush_dark_dim.png"
+      ]
     },
     {
       "key": "crush_light",
       "name": "光物质矿物粉碎",
       "type": "采矿",
       "tone": "光",
-      "img": "img/bp/crush_light.png"
+      "img": "img/bp/crush_light.png",
+      "alts": [
+        "img/bp/crush_light_dim.png"
+      ]
     },
     {
       "key": "rocket_dark",

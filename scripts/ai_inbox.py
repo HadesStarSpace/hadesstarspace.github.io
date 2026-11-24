@@ -725,7 +725,10 @@ def bp_slide(img, pill):
     return agg
 
 
-def bp_scan(img, pill, layout=""):
+BP_FAMILY = {"trade": "trade", "mining": "crush", "weapon": "rocket"}
+
+
+def bp_scan(img, pill, layout="", type_key=""):
     """两道工序合起来：轮廓法（老逻辑，容器/亮底好用）+ 滑动法（星球列表上的暗图纸）。
     返回 (key, saw)：key 为空但有 saw=True 表示“看到一张图纸但没认准”，前端提示手选。"""
     if not pill or not _BP:
@@ -747,7 +750,13 @@ def bp_scan(img, pill, layout=""):
     if best[0] and ((best[1] >= BP_STRETCH and gap >= BP_MARGIN) or (best[1] >= BP_STRETCH_LO and gap >= BP_MARGIN_LO)
                     or (best[1] >= 0.88 and gap >= 0.08)):
         return best[0], True, []
-    # 暗版图纸彼此长得很像（都是八边形线条），分数高但拉不开差距时，把前两名丢给前端让你一句话点选
+    # 暗版图纸彼此长得很像（都是八边形线条），分数拉不开时用神器类型当先验：
+    # 运输舰神器→贸易爆发，采矿舰神器→矿物粉碎（图纸是给这类模块加成的）
+    fam = BP_FAMILY.get(type_key or "", "")
+    if fam and best[1] >= 0.84:
+        for k, v in top:
+            if k.split("_")[0] == fam and v >= 0.84:
+                return k, True, []
     sug = [k for k, v in top[:2] if k] if best[1] >= 0.80 else []
     return "", saw, sug
 
@@ -879,7 +888,7 @@ def main():
         cellw = sorted(gaps)[len(gaps) // 2] if gaps else None
         for it in items:
             loc = grid_windows(img, it, cellw) if it.get("layout") == "grid" else windows(img, it)
-            bp_key, bp_saw, bp_sug = bp_scan(img, it.get("pill"), "grid" if it.get("layout") == "grid" else "list")
+            bp_key, bp_saw, bp_sug = bp_scan(img, it.get("pill"), "grid" if it.get("layout") == "grid" else "list", it.get("type") or "")
             bp_dark = bp_pending_tone(img, it.get("pill"))
             icon = loc.get("icon") if loc else None
             icon = square_center(icon) if icon is not None else None
