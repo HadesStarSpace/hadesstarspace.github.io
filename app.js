@@ -144,8 +144,11 @@ function bpIcon(a) {
 }
 /* 量子图纸选择：用图标按钮（原生 select 显示不了图片） */
 function bpChipHtml(v, typeKey) {
-  /* 图纸先按全量列：同一张图纸可能出现在多类神器上，别因为类型没认出就把可选项锁死 */
-  const list = BP_LIST.slice();
+  /* 类型认出来了就只列这类神器的图纸（选项少、不点错）；类型未知时才全量列出 */
+  const all = BP_LIST.slice();
+  let list = typeKey ? all.filter(b => b.type === typeKey) : all;
+  const cur = v ? bpOf(v, typeKey) : null;
+  if (cur && !list.some(b => b.key === cur.key)) list = [cur].concat(list);   // 已选的那张永远留着，别让改类型时悄悄丢掉
   const legacy = (v === '暗' || v === '光') ? [{ key: v, name: bpName(typeKey, v), img: BP_ICON[v] }] : [];
   const chips = legacy.concat(list).map(b =>
     `<button type="button" class="bpk${b.key === v ? ' on' : ''}" data-v="${b.key}" title="${b.name}"><img src="${IMG_BASE}${b.img}" alt="${b.name}" loading="lazy"></button>`).join('');
