@@ -1,5 +1,5 @@
 {
- "updated": 1795491111,
+ "updated": 1795491377,
  "players": [
   {
    "id": "p1",
@@ -19,6 +19,11 @@
   {
    "id": "p4",
    "name": "龙神天",
+   "note": ""
+  },
+  {
+   "id": "p91377540",
+   "name": "测试员",
    "note": ""
   }
  ],
@@ -456,6 +461,36 @@
    "img": "img/p_b5ee0b4e6e8c.jpg",
    "badge_img": "img/b_dd5f5b038aaa.jpg",
    "sig": "7f9f787485857b7cb4a875718787787aa99d73748986787b988d71788a84777b857b707d8c82767c746c6f828c80757e"
+  },
+  {
+   "id": "a63",
+   "owner": "p91377540",
+   "type_key": "mining",
+   "level": 10,
+   "bonus": 358,
+   "module": "",
+   "side": "暗",
+   "status": "have",
+   "note": "",
+   "img": "img/p_39bab95781e7.jpg",
+   "badge_img": "img/b_4319883630ef.jpg",
+   "sig": "7f967153938a9a6c90798d867d896989c096718983766c80a6916e80858782788580707b86807e7b7a787179887e7980",
+   "from": "5rWL6K-V5ZGY__1795491351.png"
+  },
+  {
+   "id": "a64",
+   "owner": "p91377540",
+   "type_key": "mining",
+   "level": 10,
+   "bonus": 358,
+   "module": "",
+   "side": "暗",
+   "status": "have",
+   "note": "",
+   "img": "img/p_c90b7df2e49b.jpg",
+   "badge_img": "img/b_b46c6bda7e87.jpg",
+   "sig": "7f956853928d955e897a9681808b738cb8917a887e706b8ab294717f818c7f769288747f83817f7a8d856c7588887c78",
+   "from": "5rWL6K-V5ZGY__1795491351.png"
   }
  ],
  "needs": [
@@ -494,5 +529,13 @@
   }
  ],
  "trades": [],
- "templates": {}
+ "templates": {},
+ "notices": [
+  {
+   "t": 1795491377,
+   "player": "测试员",
+   "img": "",
+   "note": "识别完成，2 件已入库（请到「我的」核对模块）"
+  }
+ ]
 }
