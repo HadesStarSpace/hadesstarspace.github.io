@@ -208,14 +208,26 @@ const REC = (() => {
 
   /* ---------- OCR ---------- */
   let worker = null, workerReady = null, ocrQueue = Promise.resolve();
+  const CDN = 'https://cdn.jsdelivr.net/gh/lindatou1314/qs-exchange@main/tess/';
   function ensureWorker(onLog) {
     if (workerReady) return workerReady;
-    workerReady = Tesseract.createWorker('eng', 1, {
-      workerPath: 'tess/worker.min.js',
-      corePath: 'tess',
-      langPath: 'tess',
-      logger: onLog || (() => { })
-    }).then(w => { worker = w; return w; });
+    // 先走 jsDelivr CDN（国内比 GitHub Pages 快很多），失败再回落到本站 tess/
+    const tries = [
+      { workerPath: CDN + 'worker.min.js', corePath: CDN.replace(/\/$/, ''), langPath: CDN, cacheMethod: 'write' },
+      { workerPath: 'tess/worker.min.js', corePath: 'tess', langPath: 'tess', cacheMethod: 'write' }
+    ];
+    const log = onLog || (() => { });
+    workerReady = (async () => {
+      let lastErr;
+      for (const opt of tries) {
+        try {
+          const w = await Tesseract.createWorker('eng', 1, Object.assign({ logger: log }, opt));
+          worker = w; return w;
+        } catch (e) { lastErr = e; }
+      }
+      workerReady = null;
+      throw lastErr || new Error('OCR 初始化失败');
+    })();
     return workerReady;
   }
 
