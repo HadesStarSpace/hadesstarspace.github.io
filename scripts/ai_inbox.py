@@ -464,6 +464,61 @@ def bp_tone(icon):
     return ""
 
 
+def crop_at(img, pill, layout, dx=0.0, dy=0.0):
+    w = pill["x1"] - pill["x0"]; h = pill["h"]
+    if layout == "grid":
+        cx = pill["x1"] + (-0.027 + dx) * w
+        cy = pill["y1"] + (1.06 + dy) * h
+        side = 0.66 * w
+    else:
+        cx = pill["x1"] + (-0.23 + dx) * w
+        cy = pill["cy"] + (-1.54 + dy) * h
+        side = 0.70 * w
+    s = max(12, int(side))
+    x0 = int(cx - s / 2); y0 = int(cy - s / 2)
+    x1 = min(img.shape[1], x0 + s); y1 = min(img.shape[0], y0 + s)
+    x0 = max(0, x0); y0 = max(0, y0)
+    if x1 - x0 < 8 or y1 - y0 < 8:
+        return None
+    return img[y0:y1, x0:x1]
+
+
+def bp_tone(icon):
+    """单个方块的判定：中心 62% 灰度中位数；黑底≈3~10、白底≈250、卡片底≈58、灰伞≈137"""
+    if icon is None or icon.size == 0:
+        return ""
+    h, w = icon.shape[:2]
+    side = int(min(h, w) * 0.62)
+    cy, cx = h // 2, w // 2
+    y0 = max(0, cy - side // 2); x0 = max(0, cx - side // 2)
+    core = icon[y0:y0 + side, x0:x0 + side]
+    if core.size == 0:
+        return ""
+    med = float(np.median(cv2.cvtColor(core, cv2.COLOR_BGR2GRAY)))
+    if med <= 25:
+        return "暗"
+    if med >= 235:
+        return "光"
+    return ""
+
+
+def bp_of(img, pill, layout):
+    """量子图纸：在药丸定位点周围小范围扫一遍，结果一致才认，避免裁偏一点就认错"""
+    if not pill:
+        return ""
+    votes = {"暗": 0, "光": 0, "": 0}
+    for dx in (-0.08, -0.04, 0.0, 0.04, 0.08):
+        for dy in (-0.08, -0.04, 0.0, 0.04, 0.08):
+            votes[bp_tone(crop_at(img, pill, layout, dx, dy))] += 1
+    tot = sum(votes.values())
+    if not tot:
+        return ""
+    for k in ("暗", "光"):
+        if votes[k] >= 0.32 * tot and votes[k] > votes["" ]:
+            return k
+    return ""
+
+
 def lum_of(bgr):
     if bgr is None or bgr.size == 0:
         return None
@@ -511,7 +566,7 @@ def main():
                 "sig": sig, "lum": lum_of(icon),
                 "plate": save_img(loc["card"], "p") if loc and loc.get("card") is not None else "",
                 "badge_img": save_img(icon, "b") if icon is not None else "",
-                "bp": bp_tone(icon),
+                "bp": bp_of(img, it.get("pill"), "grid" if it.get("layout") == "grid" else "list"),
             })
         os.remove(path)
         print("认出", len(items), "件")
