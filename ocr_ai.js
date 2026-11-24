@@ -1,9 +1,14 @@
 /* AI 文字识别（在浏览器里跑 PP-OCRv4 onnx）：分辨率无关，模型只下载一次 */
 (function () {
-  const BASE = 'models/';
-  const DET_PATH = BASE + 'ch_PP-OCRv4_det_infer.onnx';
-  const REC_PATH = BASE + 'ch_PP-OCRv4_rec_infer.onnx';
-  const CHARSET = BASE + 'charset.txt';
+  /* 模型优先走 jsDelivr（快、有缓存），失败再回退到本站同源 */
+  const BASES = [
+    'https://raw.githubusercontent.com/lindatou1314/qs-exchange/main/models/',
+    'https://cdn.jsdelivr.net/gh/lindatou1314/qs-exchange@main/models/',
+    'models/'
+  ];
+  const DET_NAME = 'ch_PP-OCRv4_det_infer.onnx';
+  const REC_NAME = 'ch_PP-OCRv4_rec_infer.onnx';
+  const CHARSET_NAME = 'charset.txt';
   const LIMIT = 736, THRESH = 0.3, BOX_THRESH = 0.5, UNCLIP = 1.6, REC_H = 48;
 
   let det = null, rec = null, chars = null;
@@ -15,16 +20,50 @@
     return c;
   }
 
+  async function fetchText(name) {
+    let last;
+    for (const b of BASES) {
+      try {
+        const r = await fetch(b + name);
+        if (!r.ok) throw new Error(r.status);
+        return await r.text();
+      } catch (e) { last = e; }
+    }
+    throw last || new Error('下载失败：' + name);
+  }
+
+  async function fetchBin(name, onProg) {
+    let last;
+    for (let bi = 0; bi < BASES.length; bi++) {
+      try {
+        const r = await fetch(BASES[bi] + name);
+        if (!r.ok) throw new Error(r.status);
+        const total = +(r.headers.get('content-length') || 0);
+        if (!r.body || !r.body.getReader) return new Uint8Array(await r.arrayBuffer());
+        const rd = r.body.getReader(); const chunks = []; let got = 0;
+        while (true) {
+          const { done, value } = await rd.read();
+          if (done) break;
+          chunks.push(value); got += value.length;
+          if (onProg) onProg(got, total);
+        }
+        const out = new Uint8Array(got); let o = 0;
+        for (const c of chunks) { out.set(c, o); o += c.length; }
+        return out;
+      } catch (e) { last = e; }
+    }
+    throw last || new Error('下载失败：' + name);
+  }
+
   async function loadCharset() {
     if (chars) return chars;
-    const r = await fetch(CHARSET, { cache: 'force-cache' });
-    const t = await r.text();
+    const t = await fetchText(CHARSET_NAME);
     chars = t.split('\n');
     while (chars.length && chars[chars.length - 1] === '') chars.pop();
     return chars;
   }
 
-  async function load() {
+  async function load(onProg) {
     if (rec && det) return;
     if (loading) return loading;
     loading = (async () => {
@@ -33,8 +72,10 @@
       ort.env.wasm.numThreads = 1;
       await loadCharset();
       const opt = { executionProviders: ['wasm'], graphOptimizationLevel: 'all' };
-      det = await ort.InferenceSession.create(DET_PATH, opt);
-      rec = await ort.InferenceSession.create(REC_PATH, opt);
+      const d = await fetchBin(DET_NAME, (g, t) => onProg && onProg('下载检测模型', g, t));
+      det = await ort.InferenceSession.create(d, opt);
+      const r = await fetchBin(REC_NAME, (g, t) => onProg && onProg('下载识别模型', g, t));
+      rec = await ort.InferenceSession.create(r, opt);
     })();
     return loading;
   }

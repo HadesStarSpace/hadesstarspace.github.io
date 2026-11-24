@@ -437,6 +437,10 @@ $('#pickBtn').onclick = () => $('#file').click();
 /* ---------------- 本地 AI 识别（浏览器内跑 PP-OCRv4，秒级、分辨率无关） ---------------- */
 async function aiLocalRecognize(files) {
   const all = [];
+  await AIOCR.load((msg, got, total) => {
+    const pct = total ? Math.min(99, Math.floor(got * 100 / total)) : 0;
+    $('#upHint').textContent = `${msg} ${pct}%（首次一次，之后走缓存）`;
+  });
   for (let i = 0; i < files.length; i++) {
     $('#upHint').textContent = `AI 识别中 ${i + 1}/${files.length}…`;
     const items = await AIOCR.recognizeFile(files[i], msg => { $('#upHint').textContent = `${msg} ${i + 1}/${files.length}`; });
