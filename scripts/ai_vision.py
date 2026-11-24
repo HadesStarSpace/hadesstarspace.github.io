@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import urllib.request
+import urllib.error
 
 ENDPOINT = "https://models.github.ai/inference/chat/completions"
 MODEL = os.environ.get("QS_MODEL", "openai/gpt-4o")
@@ -50,7 +51,6 @@ def call(path, model=None, prompt=None):
                                  headers={"Authorization": "Bearer " + token,
                                           "Content-Type": "application/json",
                                           "Accept": "application/json"})
-    import urllib.error
     try:
         with urllib.request.urlopen(req, timeout=120) as r:
             status = r.status
