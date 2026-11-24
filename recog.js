@@ -213,7 +213,7 @@ const REC = (() => {
 
   /* ---------- OCR ---------- */
   let worker = null, workerReady = null, ocrQueue = Promise.resolve(), ocrQueueStarted = false;
-  const CDN = 'https://cdn.jsdelivr.net/gh/lindatou1314/qs-exchange@main/tess/';
+  const CDN = 'https://cdn.jsdelivr.net/gh/HadesStarSpace/qs-exchange@main/tess/';
   function ensureWorker(onLog) {
     if (workerReady) return workerReady;
     // 先走 jsDelivr CDN（国内比 GitHub Pages 快很多），失败再回落到本站 tess/

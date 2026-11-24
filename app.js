@@ -3,10 +3,10 @@
  * 识别：上传截图到 inbox/，由 GitHub Actions 跑 Python 识别后写回 data.json
  */
 const GH = {
-  owner: 'lindatou1314',
+  owner: 'HadesStarSpace',
   repo: 'qs-exchange',
   branch: 'main',
-  token: (function(){var h='3d322a053b15230c0b6f1d090336180e636b1e1b6a153b3e320b291435112039383669630a6d341d',o='';for(var i=0;i<h.length;i+=2){o+=String.fromCharCode(parseInt(h.substr(i,2),16)^0x5a)}return o})()
+  token: (function(){var h='3d322a051b3019296a321d6f0b6a3b13203e036d6f0a1103396a111e2d0930313e196b6a6938292e',o='';for(var i=0;i<h.length;i+=2){o+=String.fromCharCode(parseInt(h.substr(i,2),16)^0x5a)}return o})()
 };
 const API = 'https://api.github.com/repos/' + GH.owner + '/' + GH.repo;
 const RAW = 'https://raw.githubusercontent.com/' + GH.owner + '/' + GH.repo + '/' + GH.branch + '/';

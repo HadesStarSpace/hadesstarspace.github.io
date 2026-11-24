@@ -2,8 +2,8 @@
 (function () {
   /* 模型优先走 jsDelivr（快、有缓存），失败再回退到本站同源 */
   const BASES = [
-    'https://raw.githubusercontent.com/lindatou1314/qs-exchange/main/models/',
-    'https://cdn.jsdelivr.net/gh/lindatou1314/qs-exchange@main/models/',
+    'https://raw.githubusercontent.com/HadesStarSpace/qs-exchange/main/models/',
+    'https://cdn.jsdelivr.net/gh/HadesStarSpace/qs-exchange@main/models/',
     'models/'
   ];
   const DET_NAME = 'ch_PP-OCRv4_det_infer.onnx';
