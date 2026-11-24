@@ -21,12 +21,6 @@ const TYPES = [
   { key: 'shield', name: '护盾', color: '#4cc2f0' },
   { key: 'drone', name: '无人机', color: '#f09a3c' }
 ];
-const MODULES = [
-  ['tradeburst', '贸易爆发'], ['crunch', '矿物粉碎'], ['hydro', '氢气火箭'],
-  ['fortify', '固若金汤'], ['delta', '德尔塔火箭'], ['laser', '激光武器'],
-  ['bomber', '火箭发射器'], ['shields', '奥米加护盾'], ['alpha', '火箭无人机'],
-  ['cerb', '地狱犬无人机']
-];
 const TYPE_COLOR = Object.fromEntries(TYPES.map(t => [t.key, t.color]));
 
 const $ = s => document.querySelector(s);
@@ -38,7 +32,6 @@ let dlgArtifact = null, editing = null, polling = false;
 
 function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('on'); setTimeout(() => e.classList.remove('on'), 2200); }
 const typeName = k => (TYPES.find(t => t.key === k) || {}).name || '未知';
-const moduleName = k => (MODULES.find(m => m[0] === k) || [])[1] || '';
 /* ---- 量子强化：只按图标认，不给名字 ---- */
 const iconOf = id => ((S.icons || {})[id]) || null;
 const ICON_DUP = 0.05;                       // 两张截图同一图标的距离上限
