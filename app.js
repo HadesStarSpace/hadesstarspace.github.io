@@ -207,6 +207,7 @@ function artCard(a, opts = {}) {
   const lv = a.level ? `<span class="chip hi">Lv${a.level}</span>` : '';
   const bonus = a.bonus ? `<span class="chip hi">+${a.bonus}%</span>` : '';
   const mod = '';
+  const badgeEl = '';
   const bpNameV = a.bp ? bpName(a.type_key, a.bp) : '';
   const bpEl = a.bp ? (bpIcon(a)
     ? `<span class="bpico" title="${bpNameV}"><img src="${bpIcon(a)}" alt="${bpNameV}"></span>`
