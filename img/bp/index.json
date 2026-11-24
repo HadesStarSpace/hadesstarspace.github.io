@@ -46,14 +46,20 @@
       "name": "暗物质氢气火箭",
       "type": "武器",
       "tone": "暗",
-      "img": "img/bp/rocket_dark.png"
+      "img": "img/bp/rocket_dark.png",
+      "alts": [
+        "img/bp/rocket_dark_dim.png"
+      ]
     },
     {
       "key": "rocket_light",
       "name": "光物质氢气火箭",
       "type": "武器",
       "tone": "光",
-      "img": "img/bp/rocket_light.png"
+      "img": "img/bp/rocket_light.png",
+      "alts": [
+        "img/bp/rocket_light_dim.png"
+      ]
     }
   ]
 }
