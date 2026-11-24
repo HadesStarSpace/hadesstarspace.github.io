@@ -1,9 +1,14 @@
 {
- "updated": 1795537357,
+ "updated": 1795537396,
  "players": [
   {
    "id": "pmwuwl04b",
    "name": "林大头",
+   "note": ""
+  },
+  {
+   "id": "pmwuwltrz",
+   "name": "自测B",
    "note": ""
   }
  ],
