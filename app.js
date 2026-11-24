@@ -74,11 +74,11 @@ function bpIcon(a) {
 /* 量子图纸选择：用图标按钮（原生 select 显示不了图片） */
 function bpChipHtml(v, typeKey) {
   const list = BP_LIST.filter(b => b.type === typeKey);
-  const all = list.length ? list : BP_LIST;
   const legacy = (v === '暗' || v === '光') ? [{ key: v, name: bpName(typeKey, v), img: BP_ICON[v] }] : [];
-  const chips = legacy.concat(all).map(b =>
+  const chips = legacy.concat(list).map(b =>
     `<button type="button" class="bpk${b.key === v ? ' on' : ''}" data-v="${b.key}" title="${b.name}"><img src="${IMG_BASE}${b.img}" alt="${b.name}" loading="lazy"></button>`).join('');
-  return `<div class="bpick"><button type="button" class="bpk bpnone${v ? '' : ' on'}" data-v="" title="无图纸">无</button>${chips}</div>`;
+  const hint = (!list.length && !legacy.length) ? '<span class="bpk-empty">该类型暂无图纸图标</span>' : '';
+  return `<div class="bpick"><button type="button" class="bpk bpnone${v ? '' : ' on'}" data-v="" title="无图纸">无</button>${chips}${hint}</div>`;
 }
 
 function bindBpPick(box, onPick) {
