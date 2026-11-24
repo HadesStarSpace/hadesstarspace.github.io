@@ -624,39 +624,41 @@ def load_blueprints():
 
 
 def bp_match(img, pill, layout=""):
-    """量子图纸：在药丸下方区域找方块，逐个和对照表里的图标算相似度，
-    只有和某张图图案一致（>=BP_MATCH）才输出该图纸 key，否则留空（宁可空着不猜）。"""
+    """量子图纸：在药丸下方区域多尺度找方块，逐个和对照表里的图标算相似度，
+    只有和某张图图案一致（>=BP_MATCH）才输出该图纸 key，否则留空（宁可空着不猜）。
+    实测真图纸 0.72~0.84，异物最高约 0.44。"""
     if not pill or not _BP:
         return ""
     w = pill["x1"] - pill["x0"]
     h = pill["h"]
-    x0 = max(0, int(pill["x0"] - 0.8 * w)); x1 = min(img.shape[1], int(pill["x1"] + 0.9 * w))
     py1 = pill.get("y1", pill.get("cy", 0) + h / 2)
-    y0 = max(0, int(py1)); y1 = min(img.shape[0], int(py1 + 3.2 * h))
-    if x1 - x0 < 20 or y1 - y0 < 20:
-        return ""
-    reg = img[y0:y1, x0:x1]
-    g = cv2.cvtColor(reg, cv2.COLOR_BGR2GRAY)
-    sat = cv2.cvtColor(reg, cv2.COLOR_BGR2HSV)[:, :, 1].astype(int)
-    m_dark = (g <= 30).astype(np.uint8) * 255
-    m_light = ((g >= 235) & (sat < 40)).astype(np.uint8) * 255
     best, best_key = 0.0, ""
-    for m in (m_dark, m_light):
-        m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
-        cs, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for c in cs:
-            x, y, cw, ch = cv2.boundingRect(c)
-            if not (0.20 * w <= cw <= 0.60 * w and 0.20 * w <= ch <= 0.60 * w):
+    for lf, rf in ((0.6, 0.6), (0.8, 0.9), (0.5, 0.5), (1.0, 1.0)):
+        x0 = max(0, int(pill["x0"] - lf * w)); x1 = min(img.shape[1], int(pill["x1"] + rf * w))
+        for top in (0.0, 0.15, 0.3):
+            y0 = max(0, int(py1 + top * h)); y1 = min(img.shape[0], int(py1 + 3.2 * h))
+            if x1 - x0 < 20 or y1 - y0 < 20:
                 continue
-            if not (0.72 <= cw / max(1, ch) <= 1.40):
-                continue
-            if cv2.contourArea(c) / float(cw * ch) < 0.5:
-                continue
-            q = _norm_tile(reg[y:y + ch, x:x + cw])
-            for key, ref in _BP:
-                sc = float((q * ref).mean())
-                if sc > best:
-                    best, best_key = sc, key
+            reg = img[y0:y1, x0:x1]
+            g = cv2.cvtColor(reg, cv2.COLOR_BGR2GRAY)
+            sat = cv2.cvtColor(reg, cv2.COLOR_BGR2HSV)[:, :, 1].astype(int)
+            masks = ((g <= 30).astype(np.uint8) * 255, ((g >= 235) & (sat < 40)).astype(np.uint8) * 255)
+            for m in masks:
+                m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+                cs, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                for c in cs:
+                    x, y, cw, ch = cv2.boundingRect(c)
+                    if not (0.15 * w <= cw <= 0.65 * w and 0.15 * w <= ch <= 0.65 * w):
+                        continue
+                    if not (0.68 <= cw / max(1, ch) <= 1.5):
+                        continue
+                    if cv2.contourArea(c) / float(cw * ch) < 0.45:
+                        continue
+                    q = _norm_tile(reg[y:y + ch, x:x + cw])
+                    for key, ref in _BP:
+                        sc = float((q * ref).mean())
+                        if sc > best:
+                            best, best_key = sc, key
     print("  图纸比对", round(best, 3), best_key)
     return best_key if best >= BP_MATCH else ""
 
