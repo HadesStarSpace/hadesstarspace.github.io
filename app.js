@@ -542,7 +542,8 @@ async function commitItems(items) {
 
 /* 云端 AI 识别主路径：图传进 inbox（一次 commit 触发一次 Actions），
    云端跑完把结果写成 inbox_out/<batch>.json，这里取回来做成核对卡片，你确认后才入库 */
-const IMG_BASE = 'https://lindatou1314.github.io/qs-exchange/';
+/* 图片走 raw.githubusercontent：云端一提交就立即可读；Pages 要等 1~2 分钟重新构建，会先 404 出“图片出不来” */
+const IMG_BASE = RAW;
 
 async function pollResult(batch, t0) {
   let tries = 0;
