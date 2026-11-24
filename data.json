@@ -1,5 +1,5 @@
 {
- "updated": 1795491744,
+ "updated": 1795491978,
  "players": [
   {
    "id": "p1",
@@ -24,6 +24,14 @@
   {
    "id": "pmwu5fc4o",
    "name": "林大头",
+   "note": ""
+  },
+  {
+   "id": "pmwu5kdkb",
+   "name": "测试甲",
+   "login": "testa",
+   "salt": "aef16037baa2ce5c",
+   "pw": "8c5d8fbd01311313c34e76c03a0bab688e0444e4a7c8d7b7bd44e023fbc18db1",
    "note": ""
   }
  ],
