@@ -252,14 +252,14 @@ def level_chip(img, pill):
     """等级数字是左下角薄荷色小方块里的数字：按颜色找到方块，放大后单独认"""
     w = pill["x1"] - pill["x0"]; h = pill["h"]
     py1 = pill.get("y1", pill.get("cy", 0) + h / 2)
-    x0 = max(0, int(pill["x0"] - 0.5 * w)); x1 = min(img.shape[1], int(pill["x0"] + 0.9 * w))
-    y0 = max(0, int(py1 + 4.2 * h)); y1 = min(img.shape[0], int(py1 + 7.0 * h))
+    x0 = max(0, int(pill["x0"] - 0.6 * w)); x1 = min(img.shape[1], int(pill["x0"] + 1.2 * w))
+    y0 = max(0, int(py1 + 3.8 * h)); y1 = min(img.shape[0], int(py1 + 7.6 * h))
     if x1 - x0 < 10 or y1 - y0 < 10:
         return None
     sub = img[y0:y1, x0:x1]
     hsv = cv2.cvtColor(sub, cv2.COLOR_BGR2HSV)
     hh, ss, vv = hsv[:, :, 0], hsv[:, :, 1].astype(int), hsv[:, :, 2].astype(int)
-    mask = ((hh > 75) & (hh < 100) & (ss > 40) & (ss < 170) & (vv > 195)).astype(np.uint8) * 255
+    mask = ((hh > 65) & (hh < 112) & (ss > 25) & (ss < 200) & (vv > 170)).astype(np.uint8) * 255
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
     cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     best = None
@@ -272,6 +272,7 @@ def level_chip(img, pill):
         if best is None or cv2.contourArea(c) > best[4]:
             best = (x, y, cw, ch, cv2.contourArea(c))
     if not best:
+        print("  等级方块没找到", (x0, y0, x1, y1))
         return None
     x, y, cw, ch = best[:4]
     crop = sub[y:y + ch, x:x + cw]
@@ -286,6 +287,7 @@ def level_chip(img, pill):
                 m = re.fullmatch(r"\s*(\d{1,2})\s*", str(txt))
                 if m and 1 <= int(m.group(1)) <= 15:
                     return int(m.group(1))
+    print("  等级方块认不出", best)
     return None
 
 
