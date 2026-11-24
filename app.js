@@ -377,13 +377,26 @@ function fileToB64(file) {
   });
 }
 
-async function putFile(path, b64, message) {
-  const body = { message, content: b64, branch: GH.branch };
-  const r = await fetch(API + '/contents/' + pathEnc(path), {
-    method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, H), body: JSON.stringify(body)
-  });
-  if (!r.ok) throw new Error('上传失败 ' + r.status + ' ' + (await r.text()).slice(0, 120));
+async function ghJson(path, opts = {}) {
+  const r = await fetch(API + path, Object.assign({ headers: Object.assign({ 'Content-Type': 'application/json' }, H) }, opts));
+  if (!r.ok) throw new Error('GitHub ' + r.status + ' ' + (await r.text()).slice(0, 120));
   return r.json();
+}
+
+/* 一次性把整批图 commit 进去：只触发一个 Actions，比一张一提交快好几倍 */
+async function putFilesBatch(files, message) {
+  const ref = await ghJson('/git/ref/heads/' + GH.branch);
+  const baseSha = ref.object.sha;
+  const baseCommit = await ghJson('/git/commits/' + baseSha);
+  const blobs = [];
+  for (const f of files) {
+    const b = await ghJson('/git/blobs', { method: 'POST', body: JSON.stringify({ content: f.b64, encoding: 'base64' }) });
+    blobs.push({ path: f.path, mode: '100644', type: 'blob', sha: b.sha });
+  }
+  const tree = await ghJson('/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: baseCommit.tree.sha, tree: blobs }) });
+  const commit = await ghJson('/git/commits', { method: 'POST', body: JSON.stringify({ message, tree: tree.sha, parents: [baseSha] }) });
+  const up = await ghJson('/git/refs/heads/' + GH.branch, { method: 'PATCH', body: JSON.stringify({ sha: commit.sha }) });
+  return up;
 }
 
 function aiWait(baseline) {
@@ -403,15 +416,15 @@ function aiWait(baseline) {
         return;
       }
     } catch (e) { }
-    if (tries > 40) {                    // 约 4 分钟
+    if (tries > 100) {                   // 约 5 分钟
       $('#upHint').textContent = '';
       toast('AI 还在识别，结果稍后会自动出现在「我的」');
       aiState.busy = false;
       return;
     }
-    setTimeout(tick, 6000);
+    setTimeout(tick, 3000);
   };
-  setTimeout(tick, 8000);
+  setTimeout(tick, 3000);
 }
 
 $('#pickBtn').onclick = () => $('#file').click();
@@ -430,14 +443,15 @@ $('#file').onchange = async e => {
     aiState.baselineN = pre.artifacts.reduce((s, x) => s + (x.qty || 1), 0);
     const head = b64url(ME.name);
     const ts = Math.floor(Date.now() / 1000);
+    const batch = [];
     for (let i = 0; i < files.length; i++) {
-      const b64 = await fileToB64(files[i]);
-      await putFile(`inbox/${head}__${ts}_${i}.png`, b64, `AI 识别上传 ${ME.name} ${i + 1}/${files.length}`);
-      $('#upHint').textContent = `已上传 ${i + 1}/${files.length} · AI 识别中（约 1~2 分钟）`;
+      batch.push({ path: `inbox/${head}__${ts}_${i}.png`, b64: await fileToB64(files[i]) });
+      $('#upHint').textContent = `已读取 ${i + 1}/${files.length} 张…`;
     }
+    await putFilesBatch(batch, `AI 识别上传 ${ME.name}（${files.length} 张）`);
     $('#file').value = '';
     aiWait(base);
-    $('#upHint').textContent = `AI 识别中（约 1~2 分钟），可以先去忙别的，结果会自动出现在「我的」`;
+    $('#upHint').textContent = `AI 识别中（一般 20~40 秒），结果会自动出现在「我的」`;
   } catch (err) {
     aiState.busy = false;
     $('#upHint').textContent = '';

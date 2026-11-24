@@ -41,7 +41,7 @@
 <div class="view" id="v-upload">
   <div class="card">
     <h3>上传「文物容器」截图</h3>
-    <div class="muted" style="margin-bottom:10px">可一次选多张截图，谁传的都行、分辨率也不用管。图交给云端 AI 认（深度学习 OCR），约 1~2 分钟自动入库，相同的会自动合并成 ×N。识别期间可以关页面，回来自动看到结果。</div>
+    <div class="muted" style="margin-bottom:10px">可一次选多张截图，谁传的都行、分辨率也不用管。图交给云端 AI 认（深度学习 OCR），一般 20~40 秒自动入库，相同的会自动合并成 ×N。识别期间可以关页面，回来自动看到结果。</div>
     <input type="file" id="file" accept="image/*" multiple style="display:none">
     <button class="btn" id="pickBtn">选择截图</button>
     <span class="muted" id="upHint" style="margin-left:8px"></span>
@@ -169,8 +169,8 @@
 </dialog>
 
 <script src="tess/tesseract.min.js"></script>
-<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">识别引擎 v2026.11.24.AI2</div>
-<script src="recog.js?v=20261124AI2"></script>
-<script src="app.js?v=20261124AI2"></script>
+<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">识别引擎 v2026.11.24.AI3</div>
+<script src="recog.js?v=20261124AI3"></script>
+<script src="app.js?v=20261124AI3"></script>
 </body>
 </html>
