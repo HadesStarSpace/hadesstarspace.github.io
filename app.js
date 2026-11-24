@@ -417,6 +417,23 @@ function renderMine() {
     : '<div class="empty">还没有需求，上面发布一条</div>';
 }
 
+async function clearMine() {
+  if (!ME) { toast('请先登录'); openAuth(); return; }
+  const mine = S.artifacts.filter(a => a.owner === ME.id);
+  const total = mine.reduce((s, a) => s + (a.qty || 1), 0);
+  if (!mine.length) { toast('你名下没有神器'); return; }
+  if (!confirm(`确定清空你名下的全部神器？共 ${total} 件（${mine.length} 条），删掉就没了。`)) return;
+  await mutate(d => {
+    d.artifacts = (d.artifacts || []).filter(a => a.owner !== ME.id);
+    d.notices = (d.notices || []).concat([{
+      t: Math.floor(Date.now() / 1000), player: ME.name, img: '',
+      note: `清空了自己名下的 ${total} 件神器`
+    }]).slice(-30);
+  }, `清空${ME.name}名下神器`);
+  toast('已清空');
+  await load();
+}
+
 async function saveContact() {
   if (!ME) { toast('请先登录'); openAuth(); return; }
   const contact = {
