@@ -483,7 +483,7 @@ async function commitItems(items) {
   const rows = items.map((s, i) => ({
     id: 'a' + base + i + Math.floor(Math.random() * 1e4).toString(36),
     owner: ME.id, type_key: s.type_key || '', level: s.level, bonus: s.bonus,
-    note: '', img: (catEntry(s.level, s.type_key) || {}).img || s.plate || '',
+    note: '', img: s.plate ? s.plate.replace(IMG_BASE, '') : ((catEntry(s.level, s.type_key) || {}).img || ''),
     lum: s.lum == null ? null : s.lum, bp: s.bp || '', qty: 1,
     t: Math.floor(Date.now() / 1000)
   }));
@@ -606,7 +606,7 @@ function renderResult() {
   const bpBox = (v, typeKey, i) => `<div class="bpickwrap" data-i="${i}">${bpChipHtml(v, typeKey)}</div>`;
   $('#resGrid').innerHTML = batchBar + pendingSlots.map((s, i) => `
     <div class="slot">
-      ${(catIcon(s.level, s.type_key) || s.plate) ? `<img class="plate" src="${catIcon(s.level, s.type_key) || s.plate}">` : '<div class="empty">无图</div>'}
+      ${(s.plate || catIcon(s.level, s.type_key)) ? `<img class="plate" title="点击查看大图" src="${s.plate || catIcon(s.level, s.type_key)}" onclick="window.open(this.src,'_blank')">` : '<div class="empty">无图</div>'}
       <label class="f">类型</label><select data-i="${i}" data-k="type_key">${tOpts(s.type_key)}</select>
       <label class="f">量子图纸</label>${bpBox(s.bp, s.type_key, i)}
       <div class="grid2" style="margin-top:4px">

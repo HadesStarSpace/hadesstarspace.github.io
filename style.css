@@ -85,7 +85,7 @@ dialog::backdrop{background:#000a}
 .icondd-item img { width:26px; height:26px; border-radius:6px; object-fit:cover; display:block; }
 
 /* 核对卡片：神器预览图限高，量子图标铺满小方框 */
-#resGrid .plate { display:block; width:100%; height:140px; object-fit:contain; object-position:center; border-radius:8px; background:#0c1419; }
+#resGrid .plate { display:block; width:100%; height:210px; object-fit:contain; object-position:center; border-radius:8px; background:#0c1419; cursor:zoom-in; }
 #resGrid .empty { height:80px; display:grid; place-items:center; border-radius:8px; background:#0c1419; color:#7d93a1; font-size:12px; }
 
 /* 图鉴：等级×颜色 */

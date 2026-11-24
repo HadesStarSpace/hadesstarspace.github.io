@@ -335,7 +335,7 @@ def windows(img, it):
             return None
         return img[y0:y1, x0:x1]
     icon = badge_square(img, pill, "list")       # 量子图标本体（正方形，铺满小方框）
-    card = cut(-1.10, 1.95, -3.6, 0.35)         # 整条神器预览
+    card = cut(-4.6, 1.3, -4.4, 1.2)             # 整行预览：神器名 + 等级 + 吨数 + 图标 + 图纸 + 加成
     side = "暗"
     if card is not None:
         v = cv2.cvtColor(card, cv2.COLOR_BGR2HSV)[:, :, 2]
@@ -456,7 +456,7 @@ def find_badge(img, x0, y0, x1, y1):
     return out
 
 
-def grid_windows(img, it):
+def grid_windows(img, it, cellw=None):
     p = it["pill"]
     w, h = p["w"], p["h"]
     def cut(xa, xb, ya, yb, base="y1"):
@@ -469,7 +469,10 @@ def grid_windows(img, it):
     # 固定窗口（药丸右下方，留足边距）：尺寸随药丸缩放，跨分辨率一致；再居中裁成正方形贴卡片方框
     icon = badge_square(img, p, "grid")
     # 整格预览：从药丸上方一点往下到格底，横向别越到下一格
-    card = cut(-0.60, 0.50, -0.30, 9.60, "y0")
+    cw = cellw or (2.2 * w)
+    ax0 = int(p["x0"] + w / 2 - cw / 2); ax1 = ax0 + int(cw)
+    card = img[max(0, int(p["y0"] - 0.9 * h)):min(img.shape[0], int(p["y0"] + 9.6 * h)),
+              max(0, ax0):min(img.shape[1], ax1)]
     side = "暗"
     if card is not None:
         v = cv2.cvtColor(card, cv2.COLOR_BGR2HSV)[:, :, 2]
@@ -769,8 +772,11 @@ def main():
                     sum(1 for x in xs if x.get("bonus") is not None), len(xs))
         if grid and score(grid) >= score(items):
             items = grid
+        xs = sorted(it["pill"]["x0"] for it in items if it.get("pill"))
+        gaps = [b - a for a, b in zip(xs, xs[1:]) if b - a > 20]
+        cellw = sorted(gaps)[len(gaps) // 2] if gaps else None
         for it in items:
-            loc = grid_windows(img, it) if it.get("layout") == "grid" else windows(img, it)
+            loc = grid_windows(img, it, cellw) if it.get("layout") == "grid" else windows(img, it)
             icon = loc.get("icon") if loc else None
             icon = square_center(icon) if icon is not None else None
             sig = grad_sig(icon) if icon is not None else ""
