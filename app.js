@@ -34,7 +34,8 @@ function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('o
 const typeName = k => (TYPES.find(t => t.key === k) || {}).name || '未知';
 /* ---- 量子强化：只按图标认，不给名字 ---- */
 const iconOf = id => ((S.icons || {})[id]) || null;
-const ICON_DUP = 0.13;                       // 两张截图同一图标的距离上限
+const ICON_DUP = 0.13;                       // 模板比对距离上限
+const ICON_SOFT = 0.18;                      // 配合亮度校验后的放宽阈值
 function iconImg(id, size) {
   const ic = iconOf(id);
   if (!ic || !ic.thumb) return '';
@@ -42,23 +43,26 @@ function iconImg(id, size) {
   return `<img src="${ic.thumb}" style="height:${s2}px;width:${s2}px;object-fit:cover;border-radius:4px;vertical-align:-${Math.round(s2 * 0.2)}px">`;
 }
 function iconChip(id) { return id ? `<span class="chip" title="量子强化">${iconImg(id, 14)}</span>` : ''; }
-function findIconBySig(d, sig) {
+function findIconBySig(d, sig, lum, type) {
   if (!sig || !d.icons) return null;
   let best = null;
   for (const [id, ic] of Object.entries(d.icons)) {
     if (!ic || !ic.sig) continue;
+    if (ic.type && type && ic.type !== type) continue;   // 不同种类的神器图标不混用
     let dist;
     try { dist = REC._test.sigAlign(REC._unb64(ic.sig), REC._unb64(sig)); } catch (e) { continue; }
+    // 亮度再卡一道：同图标两次截图亮度一致，不同图标（灰 vs 深色）亮度差得开
+    if (ic.lum != null && lum != null && Math.abs(ic.lum - lum) > 8) continue;
     if (!best || dist < best.dist) best = { id, dist };
   }
-  return best && best.dist < ICON_DUP ? best.id : null;
+  return best && best.dist < ICON_SOFT ? best.id : null;
 }
-function ensureIcon(d, sig, thumb) {
+function ensureIcon(d, sig, thumb, lum, type) {
   d.icons = d.icons || {};
-  let id = findIconBySig(d, sig);
+  let id = findIconBySig(d, sig, lum, type);
   if (!id) {
     id = 'ic' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
-    d.icons[id] = { sig, thumb: thumb || '', n: 0, t: Math.floor(Date.now() / 1000) };
+    d.icons[id] = { sig, thumb: thumb || '', lum: lum == null ? null : lum, type: type || '', n: 0, t: Math.floor(Date.now() / 1000) };
   } else if (thumb && !d.icons[id].thumb) d.icons[id].thumb = thumb;
   d.icons[id].n = (d.icons[id].n || 0) + 1;
   return id;
@@ -428,6 +432,46 @@ function aiWait(baseline) {
 }
 
 $('#pickBtn').onclick = () => $('#file').click();
+
+/* ---------------- 本地 AI 识别（浏览器内跑 PP-OCRv4，秒级、分辨率无关） ---------------- */
+async function aiLocalRecognize(files) {
+  const all = [];
+  for (let i = 0; i < files.length; i++) {
+    $('#upHint').textContent = `AI 识别中 ${i + 1}/${files.length}…`;
+    const items = await AIOCR.recognizeFile(files[i], msg => { $('#upHint').textContent = `${msg} ${i + 1}/${files.length}`; });
+    for (const it of items) all.push(it);
+  }
+  return all;
+}
+
+async function commitItems(items) {
+  if (!ME) { toast('请先登录'); openAuth(); return null; }
+  const base = Date.now().toString(36);
+  const rows = items.map((s, i) => ({
+    id: 'a' + base + i + Math.floor(Math.random() * 1e4).toString(36),
+    owner: ME.id, type_key: s.type_key || '', level: s.level, bonus: s.bonus,
+    module: '', side: s.side || '', status: s.status || 'have',
+    note: '', img: s.plate || '', badge_img: s.badge_img || '', sig: s.sig || '',
+    lum: s.lum == null ? null : s.lum, qty: 1,
+    t: Math.floor(Date.now() / 1000)
+  }));
+  let added = 0;
+  await mutate(d => {
+    d.artifacts = d.artifacts || [];
+    for (const it of rows) it.module = it.sig ? ensureIcon(d, it.sig, it.badge_img, it.lum, it.type_key) : '';
+    for (const it of rows) {
+      const same = d.artifacts.find(a => artKey(a) === artKey(it) && a.status !== 'reserved');
+      if (same) same.qty = (same.qty || 1) + 1;
+      else { d.artifacts.push(it); added++; }
+    }
+    d.notices = (d.notices || []).concat([{
+      t: Math.floor(Date.now() / 1000), player: ME.name, img: '',
+      note: `AI 识别入库 ${rows.length} 件（同款已合并）`
+    }]).slice(-30);
+  }, `入库 ${rows.length} 件神器`);
+  return { total: rows.length, added };
+}
+
 $('#file').onchange = async e => {
   const files = Array.from($('#file').files || []);
   if (!files.length) return;
@@ -435,11 +479,42 @@ $('#file').onchange = async e => {
   if (aiState.busy) { toast('上一批还在识别，稍等一下'); return; }
   aiState.busy = true;
   $('#resultCard').classList.add('hidden');
+  const t0 = performance.now();
+  try {
+    $('#upHint').textContent = '首次要下模型（约 15MB，之后走缓存）…';
+    const items = await aiLocalRecognize(files);
+    $('#file').value = '';
+    if (!items.length) throw new Error('没认到神器，换张图试试');
+    const complete = items.every(s => s.type_key && s.level != null && s.bonus != null && s.sig);
+    const secs = ((performance.now() - t0) / 1000).toFixed(1);
+    if (complete) {
+      const res = await commitItems(items);
+      $('#upHint').textContent = '';
+      if (res) {
+        await load();
+        toast(`AI 识别 ${items.length} 件 · ${secs}s${res.added < res.total ? ` · 合并成 ${res.added} 条` : ''}`);
+        switchTab('mine');
+      }
+    } else {
+      pendingSlots = items.map(s => Object.assign({ status: 'have', side: s.side || '暗' }, s));
+      renderResult();
+      $('#resHint').textContent = `AI 认出 ${items.length} 件（${secs}s）。标红的缺项请手动补，核完再入库。`;
+      $('#upHint').textContent = '';
+    }
+  } catch (err) {
+    console.warn('本地 AI 失败，转云端', err);
+    await cloudUpload(files);
+  } finally {
+    aiState.busy = false;
+  }
+};
+
+/* 云端兜底：老路，上传到仓库让 Actions 跑 */
+async function cloudUpload(files) {
   $('#upHint').textContent = `正在上传 ${files.length} 张图…`;
   try {
     const pre = await readData() || { artifacts: [], updated: 0 };
-    const base = pre.updated || 0;
-    aiState.baseline = base;
+    aiState.baseline = pre.updated || 0;
     aiState.baselineN = pre.artifacts.reduce((s, x) => s + (x.qty || 1), 0);
     const head = b64url(ME.name);
     const ts = Math.floor(Date.now() / 1000);
@@ -450,15 +525,14 @@ $('#file').onchange = async e => {
     }
     await putFilesBatch(batch, `AI 识别上传 ${ME.name}（${files.length} 张）`);
     $('#file').value = '';
-    aiWait(base);
-    $('#upHint').textContent = `AI 识别中（一般 20~40 秒），结果会自动出现在「我的」`;
+    aiWait(aiState.baseline);
+    $('#upHint').textContent = '云端 AI 识别中（一般 20~40 秒），结果会自动出现在「我的」';
   } catch (err) {
-    aiState.busy = false;
     $('#upHint').textContent = '';
     $('#file').value = '';
-    toast('AI 上传失败：' + err.message);
+    toast('识别失败：' + err.message);
   }
-};
+}
 
 function clearResult() { pendingSlots = []; $('#resultCard').classList.add('hidden'); $('#file').value = ''; }
 
@@ -510,7 +584,7 @@ $('#commitBtn').onclick = async () => {
     let added = 0;
     await mutate(d => {
       d.artifacts = d.artifacts || [];
-      for (const it of items) it.module = it.sig ? ensureIcon(d, it.sig, it.badge_img) : '';
+      for (const it of items) it.module = it.sig ? ensureIcon(d, it.sig, it.badge_img, it.lum, it.type_key) : '';
       for (const it of items) {
         const same = d.artifacts.find(a => artKey(a) === artKey(it) && a.status !== 'reserved');
         if (same) same.qty = (same.qty || 1) + 1;      // 同款：只加数量

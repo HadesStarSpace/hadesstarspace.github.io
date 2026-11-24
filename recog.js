@@ -893,5 +893,5 @@ const REC = (() => {
     });
   }
 
-  return { recognize, ensureWorker, setTemplates, matchModule, _unb64: unb64, _test: { findPlates, detectPlates, sigAlign, ocr, voteNumber, stretch, findTealPill, findDigitRun, crop, classify, readBonus, readLevel, readBadge, sigDistance, toHSV } };
+  return { recognize, ensureWorker, setTemplates, matchModule, b64, _unb64: unb64, _test: { findPlates, detectPlates, sigAlign, gradSig, ocr, voteNumber, stretch, findTealPill, findDigitRun, crop, classify, readBonus, readLevel, readBadge, sigDistance, toHSV } };
 })();
