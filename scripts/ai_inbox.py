@@ -79,6 +79,37 @@ def sig_align(a, b):
     return float(best)
 
 
+def digits_only(t):
+    return re.sub(r"\D", "", t or "")
+
+
+def looks_like_pill(t):
+    d = digits_only(t)
+    return ("%" in (t or "")) or (len(d) == 3)
+
+
+def bonus_ok(v):
+    return v is not None and 280 <= v <= 420
+
+
+def read_bonus(img, l):
+    """药丸数字：先看整图 OCR，读不准就裁药丸放大+二值化再认（JPEG 压缩常读成 %098 这类）"""
+    if l is None:
+        return None
+    d = digits_only(l["t"])
+    if len(d) == 3 and bonus_ok(int(d)):
+        return int(d)
+    m = re.search(r"(\d{3})", l["t"] or "")
+    if m and bonus_ok(int(m.group(1))):
+        return int(m.group(1))
+    w = max(10.0, l["x1"] - l["x0"]); h = max(8.0, l["h"])
+    for t in ocr_region(img, l["x0"] - 0.35 * w, l["cy"] - 0.9 * h, l["x1"] + 0.35 * w, l["cy"] + 0.9 * h, scale=3):
+        d2 = digits_only(t["t"])
+        if len(d2) == 3 and bonus_ok(int(d2)):
+            return int(d2)
+    return None
+
+
 # ---------- OCR → 条目 ----------
 def ocr_lines(path):
     res, _ = ENGINE(path)
@@ -98,7 +129,7 @@ def parse_items(path, img):
     lines = ocr_lines(path)
     names = sorted([l for l in lines if "神器" in l["t"]], key=lambda l: l["cy"])
     levels = [l for l in lines if "等级" in l["t"]]
-    pills = [l for l in lines if re.search(r"\d{3}\s*%", l["t"])]
+    pills = [l for l in lines if looks_like_pill(l["t"])]
     items = []
     for nm in names:
         lv = None
@@ -117,13 +148,7 @@ def parse_items(path, img):
             m = re.search(r"(\d{1,2})", lv["t"])
             if m:
                 lvl = int(m.group(1))
-        bns = None
-        if bn:
-            m = re.search(r"(\d{3})", bn["t"])
-            if m:
-                bns = int(m.group(1))
-        if bns is not None and not (280 <= bns <= 420):
-            bns = None
+        bns = read_bonus(img, bn) if bn else None
         it = dict(type=tkey, level=lvl, bonus=bns, name_y=nm["cy"], name_h=nm["h"],
                   text_x=nm["x1"], pill=bn)
         prev_y = (items[-1]["band_mid"] if items else 0)
@@ -177,7 +202,7 @@ def parse_grid(path, img):
     等级数字字号太小，整图 det 会漏，所以另按药丸几何裁小图放大+二值化再认一遍。
     """
     lines = ocr_lines(path)
-    pills = [pill_box(l) for l in lines if re.search(r"\d{3}\s*%", l["t"])]
+    pills = [pill_box(l) for l in lines if looks_like_pill(l["t"])]
     if len(pills) < 2:
         return []
     # 只认「纯 1~2 位数字」或「等级N」，别把药丸自己的 +360% 当成等级
@@ -212,13 +237,9 @@ def parse_grid(path, img):
                 if got is not None:
                     lvl = got
                     break
-        bns = None
-        for l in lines:
-            if l["x0"] == p["x0"] and l["cy"] == p["cy"] and re.search(r"\d{3}\s*%", l["t"]):
-                mm = re.search(r"(\d{3})", l["t"])
-                if mm:
-                    bns = int(mm.group(1))
-        if bns is None or not (280 <= bns <= 420):
+        src_line = next((l for l in lines if l["x0"] == p["x0"] and l["cy"] == p["cy"]), None)
+        bns = read_bonus(img, src_line) if src_line else None
+        if not bonus_ok(bns):
             continue
         if lvl is None:
             continue

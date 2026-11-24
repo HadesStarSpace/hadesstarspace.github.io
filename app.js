@@ -392,7 +392,7 @@ function fileToJpegB64(file) {
       c.width = img.naturalWidth; c.height = img.naturalHeight;
       c.getContext('2d').drawImage(img, 0, 0);
       URL.revokeObjectURL(url);
-      res(String(c.toDataURL('image/jpeg', 0.92)).split(',')[1] || '');
+      res(String(c.toDataURL('image/jpeg', 0.95)).split(',')[1] || '');
     };
     img.onerror = e => { URL.revokeObjectURL(url); rej(e); };
     img.src = url;
