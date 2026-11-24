@@ -1003,7 +1003,7 @@ function renderCatalog() {
     h += `<div class="catlv">${lv}</div>`;
     for (const t of CAT_TYPES) {
       const it = list.find(x => x.level === lv && x.type === t);
-      h += it ? `<div class="catcell"><img src="${iw}${it.img}?v=c2" loading="lazy"><i>Lv${lv}</i></div>`
+      h += it ? `<div class="catcell"><img src="${iw}${it.img}" loading="lazy"><i>Lv${lv}</i></div>`
               : '<div class="catcell empty">—</div>';
     }
   }

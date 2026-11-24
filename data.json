@@ -23,448 +23,448 @@
    "type": "运输舰",
    "color": "黄",
    "name": "运输舰·1",
-   "img": "img/cat/l1_运输舰.jpg"
+   "img": "img/cat2/l1_运输舰.jpg"
   },
   {
    "level": 2,
    "type": "运输舰",
    "color": "黄",
    "name": "运输舰·2",
-   "img": "img/cat/l2_运输舰.jpg"
+   "img": "img/cat2/l2_运输舰.jpg"
   },
   {
    "level": 2,
    "type": "采矿",
    "color": "紫",
    "name": "采矿·2",
-   "img": "img/cat/l2_采矿.jpg"
+   "img": "img/cat2/l2_采矿.jpg"
   },
   {
    "level": 2,
    "type": "战斗",
    "color": "绿",
    "name": "战斗·2",
-   "img": "img/cat/l2_战斗.jpg"
+   "img": "img/cat2/l2_战斗.jpg"
   },
   {
    "level": 2,
    "type": "武器",
    "color": "粉",
    "name": "武器·2",
-   "img": "img/cat/l2_武器.jpg"
+   "img": "img/cat2/l2_武器.jpg"
   },
   {
    "level": 2,
    "type": "护盾",
    "color": "青",
    "name": "护盾·2",
-   "img": "img/cat/l2_护盾.jpg"
+   "img": "img/cat2/l2_护盾.jpg"
   },
   {
    "level": 3,
    "type": "运输舰",
    "color": "黄",
    "name": "运输舰·3",
-   "img": "img/cat/l3_运输舰.jpg"
+   "img": "img/cat2/l3_运输舰.jpg"
   },
   {
    "level": 3,
    "type": "采矿",
    "color": "紫",
    "name": "采矿·3",
-   "img": "img/cat/l3_采矿.jpg"
+   "img": "img/cat2/l3_采矿.jpg"
   },
   {
    "level": 3,
    "type": "战斗",
    "color": "绿",
    "name": "战斗·3",
-   "img": "img/cat/l3_战斗.jpg"
+   "img": "img/cat2/l3_战斗.jpg"
   },
   {
    "level": 3,
    "type": "武器",
    "color": "粉",
    "name": "武器·3",
-   "img": "img/cat/l3_武器.jpg"
+   "img": "img/cat2/l3_武器.jpg"
   },
   {
    "level": 3,
    "type": "护盾",
    "color": "青",
    "name": "护盾·3",
-   "img": "img/cat/l3_护盾.jpg"
+   "img": "img/cat2/l3_护盾.jpg"
   },
   {
    "level": 4,
    "type": "运输舰",
    "color": "黄",
    "name": "运输舰·4",
-   "img": "img/cat/l4_运输舰.jpg"
+   "img": "img/cat2/l4_运输舰.jpg"
   },
   {
    "level": 4,
    "type": "采矿",
    "color": "紫",
    "name": "采矿·4",
-   "img": "img/cat/l4_采矿.jpg"
+   "img": "img/cat2/l4_采矿.jpg"
   },
   {
    "level": 4,
    "type": "战斗",
    "color": "绿",
    "name": "战斗·4",
-   "img": "img/cat/l4_战斗.jpg"
+   "img": "img/cat2/l4_战斗.jpg"
   },
   {
    "level": 4,
    "type": "武器",
    "color": "粉",
    "name": "武器·4",
-   "img": "img/cat/l4_武器.jpg"
+   "img": "img/cat2/l4_武器.jpg"
   },
   {
    "level": 4,
    "type": "护盾",
    "color": "青",
    "name": "护盾·4",
-   "img": "img/cat/l4_护盾.jpg"
+   "img": "img/cat2/l4_护盾.jpg"
   },
   {
    "level": 5,
    "type": "运输舰",
    "color": "黄",
    "name": "运输舰·5",
-   "img": "img/cat/l5_运输舰.jpg"
+   "img": "img/cat2/l5_运输舰.jpg"
   },
   {
    "level": 5,
    "type": "采矿",
    "color": "紫",
    "name": "采矿·5",
-   "img": "img/cat/l5_采矿.jpg"
+   "img": "img/cat2/l5_采矿.jpg"
   },
   {
    "level": 5,
    "type": "战斗",
    "color": "绿",
    "name": "战斗·5",
-   "img": "img/cat/l5_战斗.jpg"
+   "img": "img/cat2/l5_战斗.jpg"
   },
   {
    "level": 5,
    "type": "武器",
    "color": "粉",
    "name": "武器·5",
-   "img": "img/cat/l5_武器.jpg"
+   "img": "img/cat2/l5_武器.jpg"
   },
   {
    "level": 5,
    "type": "护盾",
    "color": "青",
    "name": "护盾·5",
-   "img": "img/cat/l5_护盾.jpg"
+   "img": "img/cat2/l5_护盾.jpg"
   },
   {
    "level": 5,
    "type": "无人机",
    "color": "橙",
    "name": "无人机·5",
-   "img": "img/cat/l5_无人机.jpg"
+   "img": "img/cat2/l5_无人机.jpg"
   },
   {
    "level": 6,
    "type": "运输舰",
    "color": "黄",
    "name": "运输舰·6",
-   "img": "img/cat/l6_运输舰.jpg"
+   "img": "img/cat2/l6_运输舰.jpg"
   },
   {
    "level": 6,
    "type": "采矿",
    "color": "紫",
    "name": "采矿·6",
-   "img": "img/cat/l6_采矿.jpg"
+   "img": "img/cat2/l6_采矿.jpg"
   },
   {
    "level": 6,
    "type": "战斗",
    "color": "绿",
    "name": "战斗·6",
-   "img": "img/cat/l6_战斗.jpg"
+   "img": "img/cat2/l6_战斗.jpg"
   },
   {
    "level": 6,
    "type": "武器",
    "color": "粉",
    "name": "武器·6",
-   "img": "img/cat/l6_武器.jpg"
+   "img": "img/cat2/l6_武器.jpg"
   },
   {
    "level": 6,
    "type": "护盾",
    "color": "青",
    "name": "护盾·6",
-   "img": "img/cat/l6_护盾.jpg"
+   "img": "img/cat2/l6_护盾.jpg"
   },
   {
    "level": 6,
    "type": "无人机",
    "color": "橙",
    "name": "无人机·6",
-   "img": "img/cat/l6_无人机.jpg"
+   "img": "img/cat2/l6_无人机.jpg"
   },
   {
    "level": 7,
    "type": "运输舰",
    "color": "黄",
    "name": "运输舰·7",
-   "img": "img/cat/l7_运输舰.jpg"
+   "img": "img/cat2/l7_运输舰.jpg"
   },
   {
    "level": 7,
    "type": "采矿",
    "color": "紫",
    "name": "采矿·7",
-   "img": "img/cat/l7_采矿.jpg"
+   "img": "img/cat2/l7_采矿.jpg"
   },
   {
    "level": 7,
    "type": "战斗",
    "color": "绿",
    "name": "战斗·7",
-   "img": "img/cat/l7_战斗.jpg"
+   "img": "img/cat2/l7_战斗.jpg"
   },
   {
    "level": 7,
    "type": "武器",
    "color": "粉",
    "name": "武器·7",
-   "img": "img/cat/l7_武器.jpg"
+   "img": "img/cat2/l7_武器.jpg"
   },
   {
    "level": 7,
    "type": "护盾",
    "color": "青",
    "name": "护盾·7",
-   "img": "img/cat/l7_护盾.jpg"
+   "img": "img/cat2/l7_护盾.jpg"
   },
   {
    "level": 7,
    "type": "无人机",
    "color": "橙",
    "name": "无人机·7",
-   "img": "img/cat/l7_无人机.jpg"
+   "img": "img/cat2/l7_无人机.jpg"
   },
   {
    "level": 8,
    "type": "运输舰",
    "color": "黄",
    "name": "运输舰·8",
-   "img": "img/cat/l8_运输舰.jpg"
+   "img": "img/cat2/l8_运输舰.jpg"
   },
   {
    "level": 8,
    "type": "采矿",
    "color": "紫",
    "name": "采矿·8",
-   "img": "img/cat/l8_采矿.jpg"
+   "img": "img/cat2/l8_采矿.jpg"
   },
   {
    "level": 8,
    "type": "战斗",
    "color": "绿",
    "name": "战斗·8",
-   "img": "img/cat/l8_战斗.jpg"
+   "img": "img/cat2/l8_战斗.jpg"
   },
   {
    "level": 8,
    "type": "武器",
    "color": "粉",
    "name": "武器·8",
-   "img": "img/cat/l8_武器.jpg"
+   "img": "img/cat2/l8_武器.jpg"
   },
   {
    "level": 8,
    "type": "护盾",
    "color": "青",
    "name": "护盾·8",
-   "img": "img/cat/l8_护盾.jpg"
+   "img": "img/cat2/l8_护盾.jpg"
   },
   {
    "level": 8,
    "type": "无人机",
    "color": "橙",
    "name": "无人机·8",
-   "img": "img/cat/l8_无人机.jpg"
+   "img": "img/cat2/l8_无人机.jpg"
   },
   {
    "level": 9,
    "type": "运输舰",
    "color": "黄",
    "name": "运输舰·9",
-   "img": "img/cat/l9_运输舰.jpg"
+   "img": "img/cat2/l9_运输舰.jpg"
   },
   {
    "level": 9,
    "type": "采矿",
    "color": "紫",
    "name": "采矿·9",
-   "img": "img/cat/l9_采矿.jpg"
+   "img": "img/cat2/l9_采矿.jpg"
   },
   {
    "level": 9,
    "type": "战斗",
    "color": "绿",
    "name": "战斗·9",
-   "img": "img/cat/l9_战斗.jpg"
+   "img": "img/cat2/l9_战斗.jpg"
   },
   {
    "level": 9,
    "type": "武器",
    "color": "粉",
    "name": "武器·9",
-   "img": "img/cat/l9_武器.jpg"
+   "img": "img/cat2/l9_武器.jpg"
   },
   {
    "level": 9,
    "type": "护盾",
    "color": "青",
    "name": "护盾·9",
-   "img": "img/cat/l9_护盾.jpg"
+   "img": "img/cat2/l9_护盾.jpg"
   },
   {
    "level": 9,
    "type": "无人机",
    "color": "橙",
    "name": "无人机·9",
-   "img": "img/cat/l9_无人机.jpg"
+   "img": "img/cat2/l9_无人机.jpg"
   },
   {
    "level": 10,
    "type": "运输舰",
    "color": "黄",
    "name": "运输舰·10",
-   "img": "img/cat/l10_运输舰.jpg"
+   "img": "img/cat2/l10_运输舰.jpg"
   },
   {
    "level": 10,
    "type": "采矿",
    "color": "紫",
    "name": "采矿·10",
-   "img": "img/cat/l10_采矿.jpg"
+   "img": "img/cat2/l10_采矿.jpg"
   },
   {
    "level": 10,
    "type": "战斗",
    "color": "绿",
    "name": "战斗·10",
-   "img": "img/cat/l10_战斗.jpg"
+   "img": "img/cat2/l10_战斗.jpg"
   },
   {
    "level": 10,
    "type": "武器",
    "color": "粉",
    "name": "武器·10",
-   "img": "img/cat/l10_武器.jpg"
+   "img": "img/cat2/l10_武器.jpg"
   },
   {
    "level": 10,
    "type": "护盾",
    "color": "青",
    "name": "护盾·10",
-   "img": "img/cat/l10_护盾.jpg"
+   "img": "img/cat2/l10_护盾.jpg"
   },
   {
    "level": 10,
    "type": "无人机",
    "color": "橙",
    "name": "无人机·10",
-   "img": "img/cat/l10_无人机.jpg"
+   "img": "img/cat2/l10_无人机.jpg"
   },
   {
    "level": 11,
    "type": "运输舰",
    "color": "黄",
    "name": "运输舰·11",
-   "img": "img/cat/l11_运输舰.jpg"
+   "img": "img/cat2/l11_运输舰.jpg"
   },
   {
    "level": 11,
    "type": "采矿",
    "color": "紫",
    "name": "采矿·11",
-   "img": "img/cat/l11_采矿.jpg"
+   "img": "img/cat2/l11_采矿.jpg"
   },
   {
    "level": 11,
    "type": "战斗",
    "color": "绿",
    "name": "战斗·11",
-   "img": "img/cat/l11_战斗.jpg"
+   "img": "img/cat2/l11_战斗.jpg"
   },
   {
    "level": 11,
    "type": "武器",
    "color": "粉",
    "name": "武器·11",
-   "img": "img/cat/l11_武器.jpg"
+   "img": "img/cat2/l11_武器.jpg"
   },
   {
    "level": 11,
    "type": "护盾",
    "color": "青",
    "name": "护盾·11",
-   "img": "img/cat/l11_护盾.jpg"
+   "img": "img/cat2/l11_护盾.jpg"
   },
   {
    "level": 11,
    "type": "无人机",
    "color": "橙",
    "name": "无人机·11",
-   "img": "img/cat/l11_无人机.jpg"
+   "img": "img/cat2/l11_无人机.jpg"
   },
   {
    "level": 12,
    "type": "运输舰",
    "color": "黄",
    "name": "运输舰·12",
-   "img": "img/cat/l12_运输舰.jpg"
+   "img": "img/cat2/l12_运输舰.jpg"
   },
   {
    "level": 12,
    "type": "采矿",
    "color": "紫",
    "name": "采矿·12",
-   "img": "img/cat/l12_采矿.jpg"
+   "img": "img/cat2/l12_采矿.jpg"
   },
   {
    "level": 12,
    "type": "战斗",
    "color": "绿",
    "name": "战斗·12",
-   "img": "img/cat/l12_战斗.jpg"
+   "img": "img/cat2/l12_战斗.jpg"
   },
   {
    "level": 12,
    "type": "武器",
    "color": "粉",
    "name": "武器·12",
-   "img": "img/cat/l12_武器.jpg"
+   "img": "img/cat2/l12_武器.jpg"
   },
   {
    "level": 12,
    "type": "护盾",
    "color": "青",
    "name": "护盾·12",
-   "img": "img/cat/l12_护盾.jpg"
+   "img": "img/cat2/l12_护盾.jpg"
   },
   {
    "level": 12,
    "type": "无人机",
    "color": "橙",
    "name": "无人机·12",
-   "img": "img/cat/l12_无人机.jpg"
+   "img": "img/cat2/l12_无人机.jpg"
   }
  ]
 }
