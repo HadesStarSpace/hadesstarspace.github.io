@@ -1,5 +1,5 @@
 {
- "updated": 1795492891,
+ "updated": 1795493368,
  "players": [
   {
    "id": "pmwu5fc4o",
@@ -15,22 +15,30 @@
   {
    "id": "a3",
    "owner": "pmwu5fc4o",
-   "type_key": "support",
-   "level": null,
-   "bonus": null,
-   "module": "",
+   "type_key": "mining",
+   "level": 12,
+   "bonus": 360,
+   "module": "tradeburst",
    "side": "暗",
    "status": "have",
    "note": "",
    "img": "img/p_3f23cc9562a9.jpg",
    "badge_img": "img/b_30fa1168ce4d.jpg",
    "sig": "7fe5a5726777888a7c7f868379767e867571747e88887e7767687e8b867b767b8282818282807d7c7a787a7d7f81817e",
-   "from": "5p6X5aSn5aS0__1795492684444.jpg"
+   "from": "5p6X5aSn5aS0__1795492684444.jpg",
+   "module_src": "manual"
   }
  ],
  "needs": [],
  "trades": [],
- "templates": {},
+ "templates": {
+  "tradeburst": {
+   "side": "暗",
+   "sigs": [
+    "7fe5a5726777888a7c7f868379767e867571747e88887e7767687e8b867b767b8282818282807d7c7a787a7d7f81817e"
+   ]
+  }
+ },
  "notices": [
   {
    "t": 1795492404,
