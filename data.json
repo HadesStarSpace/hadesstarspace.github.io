@@ -1,5 +1,5 @@
 {
- "updated": 1795492480,
+ "updated": 1795492855,
  "players": [
   {
    "id": "pmwu5fc4o",
@@ -11,7 +11,53 @@
    "claimed": 1
   }
  ],
- "artifacts": [],
+ "artifacts": [
+  {
+   "id": "a1",
+   "owner": "pmwu5fc4o",
+   "type_key": "support",
+   "level": null,
+   "bonus": null,
+   "module": "",
+   "side": "暗",
+   "status": "have",
+   "note": "",
+   "img": "img/p_61b185d1d728.jpg",
+   "badge_img": "img/b_c4acfdc238e6.jpg",
+   "sig": "7f7a708d866d838f917769938965849691786a938965849691786a928966849590786b92886784948f786c9188688393",
+   "from": "5p6X5aSn5aS0__1795492684444.jpg"
+  },
+  {
+   "id": "a2",
+   "owner": "pmwu5fc4o",
+   "type_key": "support",
+   "level": null,
+   "bonus": null,
+   "module": "",
+   "side": "暗",
+   "status": "have",
+   "note": "",
+   "img": "img/p_3b975e344a96.jpg",
+   "badge_img": "img/b_7acf16e1355e.jpg",
+   "sig": "7fe6a673677887887c8087857a767d857774767e87877e7766667d89857b777d7e7d7e8082817e7d7977797c7f81817e",
+   "from": "5p6X5aSn5aS0__1795492684444.jpg"
+  },
+  {
+   "id": "a3",
+   "owner": "pmwu5fc4o",
+   "type_key": "support",
+   "level": null,
+   "bonus": null,
+   "module": "",
+   "side": "暗",
+   "status": "have",
+   "note": "",
+   "img": "img/p_3f23cc9562a9.jpg",
+   "badge_img": "img/b_30fa1168ce4d.jpg",
+   "sig": "7fe5a5726777888a7c7f868379767e867571747e88887e7767687e8b867b767b8282818282807d7c7a787a7d7f81817e",
+   "from": "5p6X5aSn5aS0__1795492684444.jpg"
+  }
+ ],
  "needs": [],
  "trades": [],
  "templates": {},
@@ -27,6 +73,12 @@
    "player": "站长",
    "img": "",
    "note": "成员名单只保留林大头，已移除：忆灵、CannonM、洋芋、龙神天"
+  },
+  {
+   "t": 1795492855,
+   "player": "林大头",
+   "img": "",
+   "note": "识别完成，3 件已入库（请到「我的」核对模块）"
   }
  ]
 }
