@@ -1,0 +1,19 @@
+{
+  "note": "量子图纸图标对照表：云端识别时用这里的图做图案比对，图案一致才认这个图纸。新增图纸时把图放到 img/bp/ 下，再在这里加一条。",
+  "blueprints": [
+    {
+      "key": "trade_dark",
+      "name": "暗物质贸易爆发",
+      "type": "运输舰",
+      "tone": "暗",
+      "img": "img/bp/trade_dark.png"
+    },
+    {
+      "key": "trade_light",
+      "name": "光物质贸易爆发",
+      "type": "运输舰",
+      "tone": "光",
+      "img": "img/bp/trade_light.png"
+    }
+  ]
+}

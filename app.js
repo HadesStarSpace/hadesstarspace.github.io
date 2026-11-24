@@ -22,13 +22,20 @@ const TYPES = [
   { key: 'drone', name: '无人机', color: '#f09a3c' }
 ];
 const TYPE_COLOR = Object.fromEntries(TYPES.map(t => [t.key, t.color]));
-/* 量子图纸：有的条目带图纸图标，同一类型按「暗 / 光」分两种（暗=深底方块，光=浅底方块） */
-const BP = {
-  trade: { '暗': { name: '暗物质贸易爆发', img: 'img/bp/trade_dark.png' },
-           '光': { name: '光物质贸易爆发', img: 'img/bp/trade_light.png' } }
-};
+/* 量子图纸：值存图纸 key（如 trade_dark），名字/图标按对照表查；旧数据里的「暗/光」按类型兜底 */
+const BP_LIST = [
+  { key: 'trade_dark', name: '暗物质贸易爆发', type: 'trade', tone: '暗', img: 'img/bp/trade_dark.png' },
+  { key: 'trade_light', name: '光物质贸易爆发', type: 'trade', tone: '光', img: 'img/bp/trade_light.png' }
+];
 /* 还没补图的类型，先用同一套「暗/光」方块图标顶上，别拿文字占位 */
 const BP_ICON = { '暗': 'img/bp/trade_dark.png', '光': 'img/bp/trade_light.png' };
+/* 图纸 key / 旧值（暗、光）→ 对照表条目 */
+function bpOf(bpKey, typeKey) {
+  if (!bpKey) return null;
+  const hit = BP_LIST.find(b => b.key === bpKey);
+  if (hit) return hit;
+  return BP_LIST.find(b => b.type === typeKey && b.tone === bpKey) || null;
+}
 
 const $ = s => document.querySelector(s);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -52,14 +59,16 @@ function catEntry(level, typeKey) {
   return same.reduce((a, b) => Math.abs(b.level - level) < Math.abs(a.level - level) ? b : a);
 }
 function catIcon(level, typeKey) { const e = catEntry(level, typeKey); return e ? IMG_BASE + e.img : ''; }
-function bpMeta(typeKey, tone) { const m = BP[typeKey]; return (m && m[tone]) || null; }
-function bpName(typeKey, tone) {
-  const m = bpMeta(typeKey, tone);
-  return m ? m.name : (tone === '光' ? '光物质图纸' : '暗物质图纸');
+function bpName(typeKey, bpKey) {
+  const m = bpOf(bpKey, typeKey);
+  if (m) return m.name;
+  if (bpKey === '光') return '光物质图纸';
+  if (bpKey === '暗') return '暗物质图纸';
+  return bpKey ? '量子图纸' : '';
 }
 function bpIcon(a) {
-  const m = bpMeta(a.type_key, a.bp);
-  const rel = (m && m.img) || BP_ICON[a.bp];
+  const m = bpOf(a.bp, a.type_key);
+  const rel = (m && m.img) || BP_ICON[a.bp] || BP_ICON['暗'];
   return rel ? IMG_BASE + rel : '';
 }
 function playerOf(id) { return ((S.players || []).find(p => p.id === id)) || {}; }
@@ -574,8 +583,13 @@ function renderResult() {
   $('#resHint').textContent = noType.length ? '等级/加成已认出；类型请在上面一次选好，再入库。' : '核对无误就点「确认入库」。';
   const tOpts = k => ['<option value="">未知</option>'].concat(
     TYPES.map(t => `<option value="${t.key}" ${t.key === k ? 'selected' : ''}>${t.name}</option>`)).join('');
-  const bpOpts = (v, typeKey) => ['<option value="">无</option>'].concat(['暗', '光'].map(tn =>
-    `<option value="${tn}" ${tn === v ? 'selected' : ''}>${bpName(typeKey, tn)}</option>`)).join('');
+  const bpOpts = (v, typeKey) => {
+    const list = BP_LIST.filter(b => b.type === typeKey);
+    const all = list.length ? list : BP_LIST;
+    const legacy = (v === '暗' || v === '光') ? [`<option value="${v}" selected>${bpName(typeKey, v)}（旧）</option>`] : [];
+    return ['<option value="">无</option>'].concat(legacy).concat(all.map(b =>
+      `<option value="${b.key}" ${b.key === v ? 'selected' : ''}>${b.name}</option>`)).join('');
+  };
   $('#resGrid').innerHTML = batchBar + pendingSlots.map((s, i) => `
     <div class="slot">
       ${(catIcon(s.level, s.type_key) || s.plate) ? `<img class="plate" src="${catIcon(s.level, s.type_key) || s.plate}">` : '<div class="empty">无图</div>'}
@@ -673,14 +687,17 @@ function openEdit(id) {
   editing = Object.assign({}, S.artifacts.find(a => a.id === id));
   if (!editing) return;
   $('#eType').innerHTML = TYPES.map(t => `<option value="${t.key}" ${t.key === editing.type_key ? 'selected' : ''}>${t.name}</option>`).join('');
-  $('#eBp').innerHTML = ['<option value="">无</option>'].concat(['暗', '光'].map(tn =>
-    `<option value="${tn}" ${tn === editing.bp ? 'selected' : ''}>${bpName(editing.type_key, tn)}</option>`)).join('');
+  const eBpOpts = (v, tk) => {
+    const legacy = (v === '暗' || v === '光') ? [`<option value="${v}" selected>${bpName(tk, v)}（旧）</option>`] : [];
+    return ['<option value="">无</option>'].concat(legacy).concat(BP_LIST.map(b =>
+      `<option value="${b.key}" ${b.key === v ? 'selected' : ''}>${b.name}</option>`)).join('');
+  };
+  $('#eBp').innerHTML = eBpOpts(editing.bp, editing.type_key);
   $('#eLevel').value = editing.level || '';
   $('#eBonus').value = editing.bonus || '';
   $('#eType').onchange = () => {
     const v = $('#eBp').value;
-    $('#eBp').innerHTML = ['<option value="">无</option>'].concat(['暗', '光'].map(tn =>
-      `<option value="${tn}" ${tn === v ? 'selected' : ''}>${bpName($('#eType').value, tn)}</option>`)).join('');
+    $('#eBp').innerHTML = eBpOpts(v, $('#eType').value);
   };
   $('#eSave').onclick = saveEdit;
   $('#dlgEdit').showModal();
@@ -917,9 +934,8 @@ function renderBpGrid() {
   const el = $('#bpGrid');
   if (!el) return;
   const cells = TYPES.map(t => {
-    const m = BP[t.key] || {};
     return ['暗', '光'].map(tn => {
-      const it = m[tn];
+      const it = BP_LIST.find(b => b.type === t.key && b.tone === tn);
       const name = it ? it.name : (tn === '光' ? '光物质图纸' : '暗物质图纸');
       const img = (it && it.img) || BP_ICON[tn];
       return `<div class="bpcell"><img src="${IMG_BASE}${img}" loading="lazy" alt="${name}"><i>${name}</i></div>`;

@@ -592,6 +592,75 @@ def bp_of(img, pill, layout):
     return ""
 
 
+# ---------- 量子图纸：与上传的图标做图案比对（图案一致才认） ----------
+_BP = []          # [(key, 归一化后的 64x64 参考图)]
+BP_MATCH = 0.60   # 比对门槛：真图纸实测 0.74~0.84，异物最高 0.42
+
+
+def _norm_tile(bgr):
+    g = cv2.cvtColor(cv2.resize(bgr, (64, 64), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2GRAY)
+    g = cv2.GaussianBlur(g.astype(np.float32), (3, 3), 0.8)
+    return (g - g.mean()) / (g.std() + 1e-6)
+
+
+def load_blueprints():
+    """读 img/bp/index.json：哪个图标对应哪张量子图纸，供图案比对用。"""
+    global _BP
+    _BP = []
+    idx = os.path.join(IMG, "bp", "index.json")
+    try:
+        with open(idx, encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        print("图纸对照表读不到", e)
+        return
+    for bp in data.get("blueprints", []):
+        bgr = cv2.imread(os.path.join(HERE, bp.get("img", "")))
+        if bgr is None:
+            print("图纸图标缺失", bp.get("key"), bp.get("img"))
+            continue
+        _BP.append((bp["key"], _norm_tile(bgr)))
+    print("图纸对照加载", [k for k, _ in _BP])
+
+
+def bp_match(img, pill, layout=""):
+    """量子图纸：在药丸下方区域找方块，逐个和对照表里的图标算相似度，
+    只有和某张图图案一致（>=BP_MATCH）才输出该图纸 key，否则留空（宁可空着不猜）。"""
+    if not pill or not _BP:
+        return ""
+    w = pill["x1"] - pill["x0"]
+    h = pill["h"]
+    x0 = max(0, int(pill["x0"] - 0.8 * w)); x1 = min(img.shape[1], int(pill["x1"] + 0.9 * w))
+    py1 = pill.get("y1", pill.get("cy", 0) + h / 2)
+    y0 = max(0, int(py1)); y1 = min(img.shape[0], int(py1 + 3.2 * h))
+    if x1 - x0 < 20 or y1 - y0 < 20:
+        return ""
+    reg = img[y0:y1, x0:x1]
+    g = cv2.cvtColor(reg, cv2.COLOR_BGR2GRAY)
+    sat = cv2.cvtColor(reg, cv2.COLOR_BGR2HSV)[:, :, 1].astype(int)
+    m_dark = (g <= 30).astype(np.uint8) * 255
+    m_light = ((g >= 235) & (sat < 40)).astype(np.uint8) * 255
+    best, best_key = 0.0, ""
+    for m in (m_dark, m_light):
+        m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+        cs, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for c in cs:
+            x, y, cw, ch = cv2.boundingRect(c)
+            if not (0.20 * w <= cw <= 0.60 * w and 0.20 * w <= ch <= 0.60 * w):
+                continue
+            if not (0.72 <= cw / max(1, ch) <= 1.40):
+                continue
+            if cv2.contourArea(c) / float(cw * ch) < 0.5:
+                continue
+            q = _norm_tile(reg[y:y + ch, x:x + cw])
+            for key, ref in _BP:
+                sc = float((q * ref).mean())
+                if sc > best:
+                    best, best_key = sc, key
+    print("  图纸比对", round(best, 3), best_key)
+    return best_key if best >= BP_MATCH else ""
+
+
 def lum_of(bgr):
     if bgr is None or bgr.size == 0:
         return None
@@ -667,6 +736,7 @@ def main():
         return
     os.makedirs(OUT, exist_ok=True)
     load_catalog()
+    load_blueprints()
     batches = {}
     for fn in files:
         path = os.path.join(INBOX, fn)
@@ -709,7 +779,7 @@ def main():
                 "sig": sig, "lum": lum_of(icon),
                 "plate": save_img(loc["card"], "p") if loc and loc.get("card") is not None else "",
                 "badge_img": save_img(icon, "b") if icon is not None else "",
-                "bp": bp_of(img, it.get("pill"), "grid" if it.get("layout") == "grid" else "list"),
+                "bp": bp_match(img, it.get("pill"), "grid" if it.get("layout") == "grid" else "list"),
             })
         os.remove(path)
         print("认出", len(items), "件")
