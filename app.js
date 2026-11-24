@@ -92,7 +92,9 @@ const TYPE_COLOR = Object.fromEntries(TYPES.map(t => [t.key, t.color]));
 /* 量子图纸：值存图纸 key（如 trade_dark），名字/图标按对照表查；旧数据里的「暗/光」按类型兜底 */
 const BP_LIST = [
   { key: 'trade_dark', name: '暗物质贸易爆发', type: 'trade', tone: '暗', img: 'img/bp/trade_dark.png' },
-  { key: 'trade_light', name: '光物质贸易爆发', type: 'trade', tone: '光', img: 'img/bp/trade_light.png' }
+  { key: 'trade_light', name: '光物质贸易爆发', type: 'trade', tone: '光', img: 'img/bp/trade_light.png' },
+  { key: 'crush_dark', name: '暗物质矿物粉碎', type: 'mining', tone: '暗', img: 'img/bp/crush_dark.png' },
+  { key: 'crush_light', name: '光物质矿物粉碎', type: 'mining', tone: '光', img: 'img/bp/crush_light.png' }
 ];
 /* 还没补图的类型，先用同一套「暗/光」方块图标顶上，别拿文字占位 */
 const BP_ICON = { '暗': 'img/bp/trade_dark.png', '光': 'img/bp/trade_light.png' };
@@ -140,7 +142,8 @@ function bpIcon(a) {
 }
 /* 量子图纸选择：用图标按钮（原生 select 显示不了图片） */
 function bpChipHtml(v, typeKey) {
-  const list = BP_LIST.filter(b => b.type === typeKey);
+  /* 图纸先按全量列：同一张图纸可能出现在多类神器上，别因为类型没认出就把可选项锁死 */
+  const list = BP_LIST.slice();
   const legacy = (v === '暗' || v === '光') ? [{ key: v, name: bpName(typeKey, v), img: BP_ICON[v] }] : [];
   const chips = legacy.concat(list).map(b =>
     `<button type="button" class="bpk${b.key === v ? ' on' : ''}" data-v="${b.key}" title="${b.name}"><img src="${IMG_BASE}${b.img}" alt="${b.name}" loading="lazy"></button>`).join('');

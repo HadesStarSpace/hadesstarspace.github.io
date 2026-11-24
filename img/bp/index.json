@@ -14,6 +14,20 @@
       "type": "运输舰",
       "tone": "光",
       "img": "img/bp/trade_light.png"
+    },
+    {
+      "key": "crush_dark",
+      "name": "暗物质矿物粉碎",
+      "type": "采矿",
+      "tone": "暗",
+      "img": "img/bp/crush_dark.png"
+    },
+    {
+      "key": "crush_light",
+      "name": "光物质矿物粉碎",
+      "type": "采矿",
+      "tone": "光",
+      "img": "img/bp/crush_light.png"
     }
   ]
 }
