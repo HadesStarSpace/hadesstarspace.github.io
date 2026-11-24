@@ -352,15 +352,16 @@ def player_from_name(fn):
 def grid_windows(img, it):
     p = it["pill"]
     w, h = p["w"], p["h"]
-    def cut(xa, xb, ya, yb):
+    def cut(xa, xb, ya, yb, base="y1"):
         x0 = max(0, int(p["x0"] + xa * w)); x1 = min(img.shape[1], int(p["x0"] + xb * w))
-        y0 = max(0, int(p["y0"] + ya * h)); y1 = min(img.shape[0], int(p["y0"] + yb * h))
+        by = p["y1"] if base == "y1" else p["y0"]
+        y0 = max(0, int(by + ya * h)); y1 = min(img.shape[0], int(by + yb * h))
         if x1 - x0 < 6 or y1 - y0 < 6:
             return None
         return img[y0:y1, x0:x1]
-    icon = cut(0.58, 1.38, 0.30, 1.75)            # 量子图标
+    icon = cut(0.58, 1.38, 0.30, 1.75, "y1")      # 量子图标（在药丸下方）
     # 整格预览：从药丸上方一点往下到格底，横向别越到下一格
-    card = cut(-0.60, 0.50, -0.30, 9.60)
+    card = cut(-0.60, 0.50, -0.30, 9.60, "y0")
     side = "暗"
     if card is not None:
         v = cv2.cvtColor(card, cv2.COLOR_BGR2HSV)[:, :, 2]
