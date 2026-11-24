@@ -239,11 +239,54 @@ def parse_grid(path, img):
                 if got is not None:
                     lvl = got
                     break
+        if lvl is None:
+            lvl = level_chip(img, p)
         src_line = next((l for l in lines if l["x0"] == p["x0"] and l["cy"] == p["cy"]), None)
         bns = read_bonus(img, src_line) if src_line else None
         items.append(dict(type=None, level=lvl, bonus=bns if bonus_ok(bns) else None,
                           layout="grid", pill=p))
     return items
+
+
+def level_chip(img, pill):
+    """等级数字是左下角薄荷色小方块里的数字：按颜色找到方块，放大后单独认"""
+    w = pill["x1"] - pill["x0"]; h = pill["h"]
+    py1 = pill.get("y1", pill.get("cy", 0) + h / 2)
+    x0 = max(0, int(pill["x0"] - 0.5 * w)); x1 = min(img.shape[1], int(pill["x0"] + 0.9 * w))
+    y0 = max(0, int(py1 + 4.2 * h)); y1 = min(img.shape[0], int(py1 + 7.0 * h))
+    if x1 - x0 < 10 or y1 - y0 < 10:
+        return None
+    sub = img[y0:y1, x0:x1]
+    hsv = cv2.cvtColor(sub, cv2.COLOR_BGR2HSV)
+    hh, ss, vv = hsv[:, :, 0], hsv[:, :, 1].astype(int), hsv[:, :, 2].astype(int)
+    mask = ((hh > 75) & (hh < 100) & (ss > 40) & (ss < 170) & (vv > 195)).astype(np.uint8) * 255
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+    cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    best = None
+    for c in cnts:
+        x, y, cw, ch = cv2.boundingRect(c)
+        if cw < 18 or ch < 18 or cw > 0.55 * w or ch > 0.55 * w:
+            continue
+        if not (0.6 <= cw / float(ch) <= 1.7):
+            continue
+        if best is None or cv2.contourArea(c) > best[4]:
+            best = (x, y, cw, ch, cv2.contourArea(c))
+    if not best:
+        return None
+    x, y, cw, ch = best[:4]
+    crop = sub[y:y + ch, x:x + cw]
+    for scale in (6, 4):
+        up = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        for bgr in (up, cv2.cvtColor((cv2.cvtColor(up, cv2.COLOR_BGR2GRAY) < 120).astype(np.uint8) * 255,
+                                    cv2.COLOR_GRAY2BGR)):
+            res, _ = ENGINE(bgr)
+            for _, txt, sc in (res or []):
+                if sc is None or float(sc) < 0.5:
+                    continue
+                m = re.fullmatch(r"\s*(\d{1,2})\s*", str(txt))
+                if m and 1 <= int(m.group(1)) <= 15:
+                    return int(m.group(1))
+    return None
 
 
 def badge_square(img, pill, layout):
