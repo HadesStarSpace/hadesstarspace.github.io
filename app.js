@@ -16,8 +16,8 @@ const H = { 'Accept': 'application/vnd.github+json', 'Authorization': 'Bearer ' 
 const TYPES = [
   { key: 'trade', name: '运输舰', color: '#e8c34a' },
   { key: 'mining', name: '采矿', color: '#a76bf0' },
-  { key: 'support', name: '支援', color: '#5fc46a' },
-  { key: 'weapon', name: '战斗', color: '#e2574c' },
+  { key: 'support', name: '战斗', color: '#5fc46a' },
+  { key: 'weapon', name: '武器', color: '#e58aa8' },
   { key: 'shield', name: '护盾', color: '#4cc2f0' },
   { key: 'drone', name: '无人机', color: '#f09a3c' }
 ];
@@ -32,6 +32,19 @@ let dlgArtifact = null, editing = null, polling = false;
 
 function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('on'); setTimeout(() => e.classList.remove('on'), 2200); }
 const typeName = k => (TYPES.find(t => t.key === k) || {}).name || '未知';
+/* 按「等级 + 类型」查图鉴里的官方图标 */
+function catEntry(level, typeKey) {
+  const list = S.catalog || [];
+  if (!typeKey || !list.length) return null;
+  const name = typeName(typeKey);
+  const same = list.filter(x => x.type === name);
+  if (!same.length) return null;
+  const hit = same.find(x => x.level === level);
+  if (hit) return hit;
+  if (level == null) return same[0];
+  return same.reduce((a, b) => Math.abs(b.level - level) < Math.abs(a.level - level) ? b : a);
+}
+function catIcon(level, typeKey) { const e = catEntry(level, typeKey); return e ? IMG_BASE + e.img : ''; }
 /* ---- 强化图标：只按图标认，不给名字 ---- */
 const iconOf = id => ((S.icons || {})[id]) || null;
 const ICON_DUP = 0.13;                       // 模板比对距离上限
@@ -293,7 +306,7 @@ function artCard(a, opts = {}) {
   const cc = contactOf(a.owner);
   const ownerLine = opts.hideOwner ? '' : `<div class="owner">${playerName(a.owner)}${cc ? ` <span class="muted" style="font-size:11px">· ${cc}</span>` : ''}</div>`;
   return `<div class="art">
-    <div class="hex">${hexSVG(color, a.level)}${badgeEl}</div>
+    <div class="hex">${catIcon(a.level, a.type_key) ? `<img class="articon" src="${catIcon(a.level, a.type_key)}">` : hexSVG(color, a.level)}${badgeEl}</div>
     <div class="info">
       <div class="t1">${typeName(a.type_key)} ${lv}${bonus}${qty}${side}</div>
       <div class="t2">${mod || '无强化图标'}${a.status === 'reserved' ? ' · 交易中' : ''}</div>
@@ -536,7 +549,7 @@ async function commitItems(items) {
     id: 'a' + base + i + Math.floor(Math.random() * 1e4).toString(36),
     owner: ME.id, type_key: s.type_key || '', level: s.level, bonus: s.bonus,
     module: '', side: s.side || '', status: s.status || 'list',
-    note: '', img: s.plate || '', badge_img: s.badge_img || '', sig: s.sig || '',
+    note: '', img: (catEntry(s.level, s.type_key) || {}).img || s.plate || '', badge_img: s.badge_img || '', sig: s.sig || '',
     lum: s.lum == null ? null : s.lum, qty: 1,
     t: Math.floor(Date.now() / 1000)
   }));
@@ -660,7 +673,7 @@ function renderResult() {
     TYPES.map(t => `<option value="${t.key}" ${t.key === k ? 'selected' : ''}>${t.name}</option>`)).join('');
   $('#resGrid').innerHTML = batchBar + pendingSlots.map((s, i) => `
     <div class="slot">
-      ${s.plate ? `<img class="plate" src="${s.plate}">` : '<div class="empty">无图</div>'}
+      ${(catIcon(s.level, s.type_key) || s.plate) ? `<img class="plate" src="${catIcon(s.level, s.type_key) || s.plate}">` : '<div class="empty">无图</div>'}
       <label class="f">类型</label><select data-i="${i}" data-k="type_key">${tOpts(s.type_key)}</select>
       <div class="grid2" style="margin-top:4px">
         <div><label class="f">等级</label><input data-i="${i}" data-k="level" type="number" value="${s.level == null ? '' : s.level}"></div>
@@ -688,6 +701,7 @@ function renderResult() {
     el.onchange = () => {
       const i = +el.dataset.i, k = el.dataset.k;
       pendingSlots[i][k] = (k === 'level' || k === 'bonus') ? (el.value ? +el.value : null) : el.value;
+      if (k === 'type_key' || k === 'level') renderResult();
     };
   });
 }
