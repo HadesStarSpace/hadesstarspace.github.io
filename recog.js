@@ -255,14 +255,19 @@ const REC = (() => {
     return c;
   }
 
+  function withTimeout(p, ms) {
+    return Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
+  }
   function ocr(canvas, psm, whitelist, mode) {
     ocrQueue = ocrQueue.then(async () => {
-      const w = await ensureWorker();
-      await w.setParameters({
+      const w = await withTimeout(ensureWorker(), 8000);
+      if (!w) return '';
+      await withTimeout(w.setParameters({
         tessedit_pageseg_mode: String(psm),
         tessedit_char_whitelist: whitelist || ''
-      });
-      const r = await w.recognize(prep(canvas, mode));
+      }), 5000);
+      const r = await withTimeout(w.recognize(prep(canvas, mode)), 8000);
+      if (!r) return '';
       return (r.data.text || '').replace(/\s+/g, '');
     });
     return ocrQueue.catch(() => '');
