@@ -1,5 +1,5 @@
 {
- "updated": 1795525305,
+ "updated": 1795525333,
  "players": [
   {
    "id": "pmwu5fc4o",
@@ -11,40 +11,7 @@
    "claimed": 1
   }
  ],
- "artifacts": [
-  {
-   "id": "amwupenfu0",
-   "owner": "pmwu5fc4o",
-   "type_key": "weapon",
-   "level": 10,
-   "bonus": 358,
-   "module": "icmwupeo9278t",
-   "side": "暗",
-   "status": "list",
-   "note": "",
-   "img": "",
-   "badge_img": "https://raw.githubusercontent.com/lindatou1314/qs-exchange/main/img/b_af839e4d79ea.jpg",
-   "sig": "DyIBAQgTAgEBAAAAAAITCw4iAQMXAwABAQUNAQoEAhINIgELCgEAAQFBWC61bAIEDiMBCwYBAQECUl//wYoCAhAmAgwGAQEDhFq+rcIEAQEiJgIMBgJFdp2/sWRLRAoBcCYBCwUBM5VrfGGKLTAEAjIkAgsGBJ6UYGmhGAEBAAEOIgIMCAS/Y8ODWwEBAQEADSICBxEBNHtZKU8BAAEACw0jAgIUCgEAAQIDAgECCxQNIwIBAxIRCwwMCwwMEhMCDjEhISAgIyQlJSQkJSMPAQ51VVVWVVZWVlZWVlZowYcdPERERERFRERERERGdIFpGAUCAAAAAAAAAAAAAQIWdQ==",
-   "qty": 1,
-   "t": 1795525304
-  },
-  {
-   "id": "amwupenfu1",
-   "owner": "pmwu5fc4o",
-   "type_key": "weapon",
-   "level": 10,
-   "bonus": 358,
-   "module": "icmwupeo95290",
-   "side": "光",
-   "status": "list",
-   "note": "",
-   "img": "",
-   "badge_img": "https://raw.githubusercontent.com/lindatou1314/qs-exchange/main/img/b_49ba5ddfc1bf.jpg",
-   "sig": "DBwBDd8dAQEAAAEBAQEWzwscAWmXAgAAADZaEo9KAUALHQGCPgEAAABEVPi3ngEBCx0BfDkBAABVgLeJ/xMBABUdAXw4ASVgzceEoV4tAgBQHgF9OAJGlExvpoE5TQoAOh4BfTgDk6tSS7g8AQEBAQ8dAYNABMw3rZpbAQAAAQEKHQFlnAFlu5VDXQEAAQBFCh0BCu47AQEBBQwBAQE76wodAQEx7JpVUlJRUlWZ7y4MHQIBARBTY2NjY2NjUhAADX1/fX9+fn1+fX1+foqfORFaVVVVVVRVVVVUVVZveo8dBQEAAAAAAAAAAAABBzSIBQECAAAAAAAAAAAAAAEBBw==",
-   "qty": 2,
-   "t": 1795525304
-  }
- ],
+ "artifacts": [],
  "needs": [],
  "trades": [],
  "templates": [],
@@ -54,6 +21,12 @@
    "player": "林大头",
    "img": "",
    "note": "识别入库 3 件（同款已合并）"
+  },
+  {
+   "t": 1795525333,
+   "player": "林大头",
+   "img": "",
+   "note": "清空了自己名下的 3 件条目"
   }
  ],
  "icons": [],
