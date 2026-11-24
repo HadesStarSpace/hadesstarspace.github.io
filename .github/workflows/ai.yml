@@ -28,13 +28,13 @@ jobs:
             python3 -m venv .venv || true
             python3 -m pip install -q --target deps --no-input rapidocr_onnxruntime opencv-python-headless numpy
           fi
-      - name: AI 识别截图并写回 data.json
+      - name: AI 识别截图并写出结果 inbox_out
         run: PYTHONPATH=deps python3 scripts/ai_inbox.py
       - name: 提交结果（只提交数据，跳过 deps）
         run: |
           git config user.name "qsx-ai"
           git config user.email "qsx-ai@users.noreply.github.com"
-          git add data.json img inbox
+          git add data.json img inbox inbox_out
           if git diff --cached --quiet; then
             echo "没有变化"
           else

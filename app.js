@@ -382,6 +382,23 @@ function fileToB64(file) {
   });
 }
 
+/* 上传前压成 JPEG：分辨率不变（小字号还读得出来），体积降到 1/3~1/5，上传快很多 */
+function fileToJpegB64(file) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      res(String(c.toDataURL('image/jpeg', 0.92)).split(',')[1] || '');
+    };
+    img.onerror = e => { URL.revokeObjectURL(url); rej(e); };
+    img.src = url;
+  });
+}
+
 async function ghJson(path, opts = {}) {
   const r = await fetch(API + path, Object.assign({ headers: Object.assign({ 'Content-Type': 'application/json' }, H) }, opts));
   if (!r.ok) throw new Error('GitHub ' + r.status + ' ' + (await r.text()).slice(0, 120));
@@ -402,34 +419,6 @@ async function putFilesBatch(files, message) {
   const commit = await ghJson('/git/commits', { method: 'POST', body: JSON.stringify({ message, tree: tree.sha, parents: [baseSha] }) });
   const up = await ghJson('/git/refs/heads/' + GH.branch, { method: 'PATCH', body: JSON.stringify({ sha: commit.sha }) });
   return up;
-}
-
-function aiWait(baseline) {
-  let tries = 0;
-  const tick = async () => {
-    tries++;
-    try {
-      const d = await readData();
-      const n = (d && d.artifacts) ? d.artifacts.reduce((s, x) => s + (x.qty || 1), 0) : 0;
-      if (d && d.updated && d.updated > baseline) {
-        await load();
-        const added = n - baselineN;
-        $('#upHint').textContent = '';
-        toast(added > 0 ? `AI 识别完成：新增 ${added} 条（相同的已合并成 ×N）` : 'AI 识别完成');
-        switchTab('mine');
-        aiState.busy = false;
-        return;
-      }
-    } catch (e) { }
-    if (tries > 100) {                   // 约 5 分钟
-      $('#upHint').textContent = '';
-      toast('AI 还在识别，结果稍后会自动出现在「我的」');
-      aiState.busy = false;
-      return;
-    }
-    setTimeout(tick, 3000);
-  };
-  setTimeout(tick, 3000);
 }
 
 $('#pickBtn').onclick = () => $('#file').click();
@@ -477,6 +466,48 @@ async function commitItems(items) {
   return { total: rows.length, added };
 }
 
+/* 云端 AI 识别主路径：图传进 inbox（一次 commit 触发一次 Actions），
+   云端跑完把结果写成 inbox_out/<batch>.json，这里取回来做成核对卡片，你确认后才入库 */
+const IMG_BASE = 'https://lindatou1314.github.io/qs-exchange/';
+
+async function pollResult(batch, t0) {
+  let tries = 0;
+  while (tries++ < 90) {                       // 最多约 3 分钟
+    await new Promise(r => setTimeout(r, 2500));
+    const secs = Math.round((performance.now() - t0) / 1000);
+    $('#upHint').textContent = `云端 AI 识别中… ${secs}s（一般 25~45 秒）`;
+    try {
+      const f = await getFile('inbox_out/' + batch + '.json');
+      if (f && f.text) return JSON.parse(f.text);
+    } catch (e) { }
+  }
+  throw new Error('云端识别超时，稍后刷新试试');
+}
+
+async function cloudRecognize(files) {
+  const t0 = performance.now();
+  const head = b64url(ME.name);
+  const ts = Math.floor(Date.now() / 1000);
+  const batch = `${head}__${ts}`;
+  const up = [];
+  for (let i = 0; i < files.length; i++) {
+    $('#upHint').textContent = `正在上传 ${i + 1}/${files.length} 张…`;
+    up.push({ path: `inbox/${batch}_${i}.jpg`, b64: await fileToJpegB64(files[i]) });
+  }
+  await putFilesBatch(up, `AI 识别上传 ${ME.name}（${files.length} 张）`);
+  $('#file').value = '';
+  const res = await pollResult(batch, t0);
+  const secs = ((performance.now() - t0) / 1000).toFixed(1);
+  const items = (res.items || []).filter(it => it.level != null && it.bonus != null)
+    .map(it => ({
+      type_key: it.type_key || null, level: it.level, bonus: it.bonus, side: it.side || '暗',
+      sig: it.sig || '', lum: it.lum == null ? null : it.lum,
+      plate: it.plate ? IMG_BASE + it.plate : '', badge_img: it.badge_img ? IMG_BASE + it.badge_img : ''
+    }));
+  if (!items.length) throw new Error('云端没认出神器');
+  return { items, secs };
+}
+
 $('#file').onchange = async e => {
   const files = Array.from($('#file').files || []);
   if (!files.length) return;
@@ -484,50 +515,35 @@ $('#file').onchange = async e => {
   if (aiState.busy) { toast('上一批还在识别，稍等一下'); return; }
   aiState.busy = true;
   $('#resultCard').classList.add('hidden');
-  const t0 = performance.now();
+  $('#upHint').textContent = '准备上传…';
   try {
-    $('#upHint').textContent = '首次要下模型（约 15MB，之后走缓存）…';
-    const items = await aiLocalRecognize(files);
-    $('#file').value = '';
-    if (!items.length) throw new Error('没认到神器，换张图试试');
-    const secs = ((performance.now() - t0) / 1000).toFixed(1);
-    // 一律先给核对卡片：识别错的当场改掉，别直接塞进数据库
-    pendingSlots = items.map(s => Object.assign({ status: 'have', side: s.side || '暗' }, s));
-    $('#resHint').textContent = `AI 认出 ${items.length} 件（${secs}s）。核对一下，缺项手动补，没问题就点「确认入库」。`;
+    const r = await cloudRecognize(files);
+    pendingSlots = r.items.map(s => Object.assign({ status: 'have' }, s));
+    const grid = r.items.some(s => !s.type_key);
+    $('#resHint').textContent = `云端 AI 认出 ${r.items.length} 件（${r.secs}s）。` +
+      (grid ? '容器截图没有类型文字，在上面选一次类型；' : '') + '核对无误就点「确认入库」。';
     renderResult();
     $('#upHint').textContent = '';
   } catch (err) {
-    console.warn('本地 AI 失败，转云端', err);
-    await cloudUpload(files);
+    console.warn('云端失败，转本地识别', err);
+    try {
+      $('#upHint').textContent = '云端没成功，改用本地识别…';
+      const items = await aiLocalRecognize(files);
+      $('#file').value = '';
+      if (!items.length) throw new Error('没认到神器，换张图试试');
+      pendingSlots = items.map(s => Object.assign({ status: 'have', side: s.side || '暗' }, s));
+      $('#resHint').textContent = `本地认出 ${items.length} 件。核对无误就点「确认入库」。`;
+      renderResult();
+      $('#upHint').textContent = '';
+    } catch (e2) {
+      $('#upHint').textContent = '';
+      $('#file').value = '';
+      toast('识别失败：' + e2.message);
+    }
   } finally {
     aiState.busy = false;
   }
 };
-
-/* 云端兜底：老路，上传到仓库让 Actions 跑 */
-async function cloudUpload(files) {
-  $('#upHint').textContent = `正在上传 ${files.length} 张图…`;
-  try {
-    const pre = await readData() || { artifacts: [], updated: 0 };
-    aiState.baseline = pre.updated || 0;
-    aiState.baselineN = pre.artifacts.reduce((s, x) => s + (x.qty || 1), 0);
-    const head = b64url(ME.name);
-    const ts = Math.floor(Date.now() / 1000);
-    const batch = [];
-    for (let i = 0; i < files.length; i++) {
-      batch.push({ path: `inbox/${head}__${ts}_${i}.png`, b64: await fileToB64(files[i]) });
-      $('#upHint').textContent = `已读取 ${i + 1}/${files.length} 张…`;
-    }
-    await putFilesBatch(batch, `AI 识别上传 ${ME.name}（${files.length} 张）`);
-    $('#file').value = '';
-    aiWait(aiState.baseline);
-    $('#upHint').textContent = '云端 AI 识别中（一般 20~40 秒），结果会自动出现在「我的」';
-  } catch (err) {
-    $('#upHint').textContent = '';
-    $('#file').value = '';
-    toast('识别失败：' + err.message);
-  }
-}
 
 function clearResult() { pendingSlots = []; $('#resultCard').classList.add('hidden'); $('#file').value = ''; }
 

@@ -17,6 +17,7 @@ from rapidocr_onnxruntime import RapidOCR
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(HERE, "data.json")
 INBOX = os.path.join(HERE, "inbox")
+OUT = os.path.join(HERE, "inbox_out")
 IMG = os.path.join(HERE, "img")
 
 ENGINE = RapidOCR()
@@ -132,6 +133,99 @@ def parse_items(path, img):
     return items
 
 
+# ---------- 小区域识别（容器截图的小字号等级必须裁小图放大+二值化） ----------
+def ocr_texts_on(bgr, min_score=0.4):
+    res, _ = ENGINE(bgr)
+    out = []
+    for box, txt, score in (res or []):
+        if score is None or float(score) < min_score:
+            continue
+        xs = [p[0] for p in box]
+        ys = [p[1] for p in box]
+        out.append(dict(x0=min(xs), x1=max(xs), y0=min(ys), y1=max(ys),
+                        cy=sum(ys) / 4.0, h=max(ys) - min(ys), t=str(txt)))
+    return out
+
+
+def ocr_region(img, x0, y0, x1, y1, scale=3):
+    H, W = img.shape[:2]
+    x0 = max(0, int(x0)); y0 = max(0, int(y0))
+    x1 = min(W, int(x1)); y1 = min(H, int(y1))
+    if x1 - x0 < 6 or y1 - y0 < 6:
+        return []
+    crop = img[y0:y1, x0:x1]
+    up = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    g = cv2.cvtColor(up, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    b = np.clip((g - 135.0) * 255.0 / 115.0, 0, 255).astype(np.uint8)
+    bgr = cv2.cvtColor(255 - b, cv2.COLOR_GRAY2BGR)
+    out = []
+    for t in ocr_texts_on(bgr):
+        # 坐标换回原图
+        out.append(dict(x0=x0 + t["x0"] / scale, x1=x0 + t["x1"] / scale,
+                        cy=y0 + t["cy"] / scale, h=t["h"] / scale, t=t["t"]))
+    return out
+
+
+def pill_box(l):
+    return dict(x0=l["x0"], x1=l["x1"], y0=l["cy"] - l["h"] / 2.0, y1=l["cy"] + l["h"] / 2.0,
+                cy=l["cy"], h=l["h"], w=l["x1"] - l["x0"])
+
+
+def parse_grid(path, img):
+    """容器版式：没有「XX神器」文字，靠 +NNN% 药丸 + 邻近的等级数字按格配对。
+
+    等级数字字号太小，整图 det 会漏，所以另按药丸几何裁小图放大+二值化再认一遍。
+    """
+    lines = ocr_lines(path)
+    pills = [pill_box(l) for l in lines if re.search(r"\d{3}\s*%", l["t"])]
+    if len(pills) < 2:
+        return []
+    # 只认「纯 1~2 位数字」或「等级N」，别把药丸自己的 +360% 当成等级
+    cands = [l for l in lines if re.fullmatch(r"\s*(?:等级)?\s*\d{1,2}\s*", l["t"])]
+    items = []
+    for p in pills:
+        w, h = p["w"], p["h"]
+        lv = None
+        # 1) 先用整图里读到的等级数字
+        for l in cands:
+            if l["x0"] >= p["x0"] - 0.8 * w and l["x1"] <= p["x1"] + 1.2 * w:
+                if p["y1"] - 3.0 * h <= l["cy"] <= p["y1"] + 8.0 * h:
+                    if lv is None or abs(l["cy"] - p["y1"]) < abs(lv["cy"] - p["y1"]):
+                        lv = l
+        # 2) 读不到就在药丸下方裁小图单独认
+        lvl = None
+        if lv is not None:
+            m = re.search(r"(\d{1,2})", lv["t"])
+            if m:
+                lvl = int(m.group(1))
+        if lvl is not None and not (1 <= lvl <= 15):   # 「10」被拆成「0」这类，别采信
+            lvl = None
+        if lvl is None:
+            for dx0, dx1, dy0, dy1 in [(-0.6, 0.9, 4.4, 7.6), (-0.6, 0.9, 6.0, 9.5)]:
+                reg = ocr_region(img, p["x0"] + dx0 * w, p["y1"] + dy0 * h,
+                                 p["x1"] + dx1 * w, p["y1"] + dy1 * h)
+                got = None
+                for t in reg:
+                    m = re.fullmatch(r"\s*(\d{1,2})\s*", t["t"])
+                    if m and 1 <= int(m.group(1)) <= 15:
+                        got = int(m.group(1)); break
+                if got is not None:
+                    lvl = got
+                    break
+        bns = None
+        for l in lines:
+            if l["x0"] == p["x0"] and l["cy"] == p["cy"] and re.search(r"\d{3}\s*%", l["t"]):
+                mm = re.search(r"(\d{3})", l["t"])
+                if mm:
+                    bns = int(mm.group(1))
+        if bns is None or not (280 <= bns <= 420):
+            continue
+        if lvl is None:
+            continue
+        items.append(dict(type=None, level=lvl, bonus=bns, layout="grid", pill=p))
+    return items
+
+
 def windows(img, it):
     """药丸定位：图标窗口固定挂在药丸左上方（同一张图的版式一致，跨分辨率无影响）"""
     pill = it.get("pill")
@@ -235,55 +329,83 @@ def player_from_name(fn):
         return head
 
 
+def grid_windows(img, it):
+    p = it["pill"]
+    w, h = p["w"], p["h"]
+    def cut(xa, xb, ya, yb):
+        x0 = max(0, int(p["x0"] + xa * w)); x1 = min(img.shape[1], int(p["x0"] + xb * w))
+        y0 = max(0, int(p["y1"] + ya * h)); y1 = min(img.shape[0], int(p["y1"] + yb * h))
+        if x1 - x0 < 6 or y1 - y0 < 6:
+            return None
+        return img[y0:y1, x0:x1]
+    icon = cut(0.58, 1.38, 0.30, 1.75)            # 量子图标
+    card = cut(-0.35, 1.05, -0.20, 7.40)          # 整张神器格预览
+    side = "暗"
+    if card is not None:
+        v = cv2.cvtColor(card, cv2.COLOR_BGR2HSV)[:, :, 2]
+        if float((v > 230).mean()) > 0.10:
+            side = "光"
+    return dict(icon=icon, card=card, side=side)
+
+
+def lum_of(bgr):
+    if bgr is None or bgr.size == 0:
+        return None
+    g = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    return int(float(g.mean()))
+
+
 def main():
-    data = json.load(open(DATA, encoding="utf-8"))
-    data.setdefault("icons", {})
-    data.setdefault("notices", [])
     files = sorted(f for f in os.listdir(INBOX) if not f.startswith("."))
     if not files:
         print("inbox empty")
         return
+    os.makedirs(OUT, exist_ok=True)
+    batches = {}
     for fn in files:
         path = os.path.join(INBOX, fn)
-        player = player_from_name(fn)
         img = cv2.imread(path)
-        print("处理", fn, "玩家", player, img.shape if img is not None else None)
+        print("处理", fn, img.shape if img is not None else None)
         if img is None:
             os.remove(path)
             continue
+        player = player_from_name(fn)
+        batch = "__".join(fn.rsplit("_", 1)[0].split("__")[:2])
+        res = batches.setdefault(batch, dict(player=player, items=[], images=0, t=int(time.time())))
+        res["images"] += 1
         try:
             items = parse_items(path, img)
         except Exception as e:
-            items = []
             print("识别异常", e)
-        pid = ensure_player(data, player)
-        added = 0
+            items = []
+        if not items:
+            try:
+                items = parse_grid(path, img)
+            except Exception as e:
+                print("容器版式异常", e)
+                items = []
         for it in items:
-            if not it.get("type") or not it.get("level") or not it.get("bonus"):
-                continue
-            loc = windows(img, it)
-            sig = grad_sig(loc["icon"]) if loc and loc.get("icon") is not None else ""
-            iid = icon_id_for(data, sig, it.get("type"))
-            data["artifacts"].append({
-                "id": next_aid(data), "owner": pid,
+            loc = grid_windows(img, it) if it.get("layout") == "grid" else windows(img, it)
+            icon = loc.get("icon") if loc else None
+            sig = grad_sig(icon) if icon is not None else ""
+            res["items"].append({
                 "type_key": it.get("type"), "level": it.get("level"), "bonus": it.get("bonus"),
-                "module": iid, "side": loc.get("side") if loc else "暗", "status": "have", "note": "",
-                "img": save_img(loc["card"], "p") if loc and loc.get("card") is not None else "",
-                "badge_img": save_img(loc["icon"], "b") if loc and loc.get("icon") is not None else "",
-                "sig": sig, "from": fn,
+                "side": loc.get("side") if loc else "暗",
+                "sig": sig, "lum": lum_of(icon),
+                "plate": save_img(loc["card"], "p") if loc and loc.get("card") is not None else "",
+                "badge_img": save_img(icon, "b") if icon is not None else "",
             })
-            added += 1
-        merge(data)
-        total = len(data["artifacts"])
-        data["notices"].append({"t": int(time.time()), "player": player, "img": "",
-                                "note": "AI 识别完成：%s 张图认出 %d 件（当前共 %d 条）" % (fn, added, total)})
         os.remove(path)
-        print("入库", added)
-    data["updated"] = int(time.time())
-    data["notices"] = data["notices"][-30:]
-    with open(DATA, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=1)
-    print("done")
+        print("认出", len(items), "件")
+    if os.path.isdir(OUT):
+        olds = sorted((os.path.join(OUT, f) for f in os.listdir(OUT)), key=os.path.getmtime)
+        for f in olds[:-40]:
+            os.remove(f)
+    for batch, res in batches.items():
+        res["t"] = int(time.time())
+        with open(os.path.join(OUT, batch + ".json"), "w", encoding="utf-8") as f:
+            json.dump(res, f, ensure_ascii=False)
+        print("写结果", batch, len(res["items"]))
 
 
 if __name__ == "__main__":

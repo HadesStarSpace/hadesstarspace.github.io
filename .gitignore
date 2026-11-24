@@ -1,3 +1,4 @@
 deps/
 .venv/
 _t/
+__pycache__/
