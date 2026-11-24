@@ -208,7 +208,7 @@ const REC = (() => {
   }
 
   /* ---------- OCR ---------- */
-  let worker = null, workerReady = null, ocrQueue = Promise.resolve();
+  let worker = null, workerReady = null, ocrQueue = Promise.resolve(), ocrQueueStarted = false;
   const CDN = 'https://cdn.jsdelivr.net/gh/lindatou1314/qs-exchange@main/tess/';
   function ensureWorker(onLog) {
     if (workerReady) return workerReady;
@@ -260,7 +260,8 @@ const REC = (() => {
   }
   function ocr(canvas, psm, whitelist, mode) {
     ocrQueue = ocrQueue.then(async () => {
-      const w = await withTimeout(ensureWorker(), 8000);
+      const w = await withTimeout(ensureWorker(), ocrQueueStarted ? 8000 : 30000);
+      ocrQueueStarted = true;
       if (!w) return '';
       await withTimeout(w.setParameters({
         tessedit_pageseg_mode: String(psm),

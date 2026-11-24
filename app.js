@@ -122,7 +122,10 @@ async function load() {
   $('#meHint').textContent = me ? ('账号 ' + (me.login || '—') + ' · 已登录') : '登录后才能上传、挂牌和发交换意向。';
   $('#authBtn').classList.toggle('hidden', !!me);
   $('#logoutBtn').classList.toggle('hidden', !me);
-  if (typeof REC !== 'undefined') REC.setTemplates(S.templates || {});
+  if (typeof REC !== 'undefined') {
+    REC.setTemplates(S.templates || {});
+    if (!load.prewarmed) { load.prewarmed = true; REC.ensureWorker().catch(() => {}); }  // 提前下模型
+  }
   fillSelects();
   renderMarket(); renderMatch(); renderInbox(); renderMine(); renderNotices();
 }
