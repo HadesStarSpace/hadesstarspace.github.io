@@ -94,7 +94,9 @@ const BP_LIST = [
   { key: 'trade_dark', name: '暗物质贸易爆发', type: 'trade', tone: '暗', img: 'img/bp/trade_dark.png' },
   { key: 'trade_light', name: '光物质贸易爆发', type: 'trade', tone: '光', img: 'img/bp/trade_light.png' },
   { key: 'crush_dark', name: '暗物质矿物粉碎', type: 'mining', tone: '暗', img: 'img/bp/crush_dark.png' },
-  { key: 'crush_light', name: '光物质矿物粉碎', type: 'mining', tone: '光', img: 'img/bp/crush_light.png' }
+  { key: 'crush_light', name: '光物质矿物粉碎', type: 'mining', tone: '光', img: 'img/bp/crush_light.png' },
+  { key: 'rocket_dark', name: '暗物质氢气火箭', type: 'weapon', tone: '暗', img: 'img/bp/rocket_dark.png' },
+  { key: 'rocket_light', name: '光物质氢气火箭', type: 'weapon', tone: '光', img: 'img/bp/rocket_light.png' }
 ];
 /* 还没补图的类型，先用同一套「暗/光」方块图标顶上，别拿文字占位 */
 const BP_ICON = { '暗': 'img/bp/trade_dark.png', '光': 'img/bp/trade_light.png' };

@@ -28,6 +28,20 @@
       "type": "采矿",
       "tone": "光",
       "img": "img/bp/crush_light.png"
+    },
+    {
+      "key": "rocket_dark",
+      "name": "暗物质氢气火箭",
+      "type": "武器",
+      "tone": "暗",
+      "img": "img/bp/rocket_dark.png"
+    },
+    {
+      "key": "rocket_light",
+      "name": "光物质氢气火箭",
+      "type": "武器",
+      "tone": "光",
+      "img": "img/bp/rocket_light.png"
     }
   ]
 }
