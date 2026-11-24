@@ -385,7 +385,7 @@ function renderResult() {
         <div><label class="f">等级</label><input data-i="${i}" data-k="level" type="number" value="${s.level == null ? '' : s.level}"></div>
         <div><label class="f">加成%</label><input data-i="${i}" data-k="bonus" type="number" value="${s.bonus == null ? '' : s.bonus}"></div>
       </div>
-      <label class="f">量子强化 ${s.badge_present ? (s.module ? '· 已认出同款' : '· 新图标，入库自动建档') : '· 无'}</label>
+      <label class="f">量子强化${s.badge_present ? (s.module ? '（同款）' : '（新）') : '（无）'}</label>
       <div class="iconcell">${s.badge_present && s.badge_img ? `<img src="${s.badge_img}">` : '<span class="muted" style="font-size:12px">无</span>'}</div>
       <div class="grid2" style="margin-top:4px">
         <div><label class="f">光/暗</label><select data-i="${i}" data-k="side">
