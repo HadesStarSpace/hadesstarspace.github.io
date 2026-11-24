@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>量子神器交换站</title>
-<link rel="stylesheet" href="style.css?v=20261124CLD8">
+<link rel="stylesheet" href="style.css?v=20261124CLD9">
 </head>
 <body>
 <div class="wrap">
@@ -108,6 +108,16 @@
     <label class="f">备注</label><input id="nNote" placeholder="例如：愿意用 2 件 358 换 1 件 360">
     <div style="margin-top:10px"><button class="btn" onclick="postNeed()">发布需求</button></div>
   </div>
+  <div class="card">
+    <h3>我的联系方式 <span class="muted" style="font-size:12px">（填了别人才能在市场/交换意向里找到你）</span></h3>
+    <div class="grid3">
+      <div><label class="f">QQ号</label><input id="cQQ" placeholder="例如 12345678"></div>
+      <div><label class="f">Discord</label><input id="cDiscord" placeholder="例如 yourname#1234"></div>
+      <div><label class="f">常驻集团</label><input id="cCorp" placeholder="例如 [ABC] 集团名"></div>
+    </div>
+    <div style="margin-top:10px"><button class="btn" onclick="saveContact()">保存联系方式</button>
+      <span class="muted" id="cHint" style="font-size:12px;margin-left:8px"></span></div>
+  </div>
   <div class="card"><h3>我的神器 <button class="btn ghost mini" onclick="addManual()" style="float:right">+ 手动添加</button></h3><div id="mineList"></div></div>
   <div class="card"><h3>我的需求</h3><div id="myNeedList"></div></div>
 </div>
@@ -170,10 +180,10 @@
 </dialog>
 
 <script src="tess/tesseract.min.js"></script>
-<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">云端 AI 识别 v2026.11.24.CLD8</div>
+<div class="muted" id="ver" style="text-align:center;font-size:11px;opacity:.6;margin:18px 0 8px">云端 AI 识别 v2026.11.24.CLD9</div>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
-<script src="recog.js?v=20261124CLD8"></script>
-<script src="ocr_ai.js?v=20261124CLD8"></script>
-<script src="app.js?v=20261124CLD8"></script>
+<script src="recog.js?v=20261124CLD9"></script>
+<script src="ocr_ai.js?v=20261124CLD9"></script>
+<script src="app.js?v=20261124CLD9"></script>
 </body>
 </html>

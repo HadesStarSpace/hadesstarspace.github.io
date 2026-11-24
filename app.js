@@ -83,6 +83,12 @@ function bindIconBar(el, onPick) {
   });
 }
 const playerName = id => (S.players.find(p => p.id === id) || {}).name || '?';
+const playerOf = id => S.players.find(p => p.id === id) || {};
+function contactOf(id) {
+  const c = playerOf(id).contact || {};
+  return [c.qq ? 'QQ ' + c.qq : '', c.discord ? 'Discord ' + c.discord : '', c.corp ? '集团 ' + c.corp : '']
+    .filter(Boolean).join(' · ');
+}
 
 function needLabel(n) {
   const t = n.type_key ? typeName(n.type_key) : '任意类型';
@@ -284,7 +290,8 @@ function artCard(a, opts = {}) {
   const side = a.side ? `<span class="chip ${a.side === '暗' ? 'dark' : ''}">${a.side}</span>` : '';
   const qty = (a.qty || 1) > 1 ? `<span class="chip hi">×${a.qty}</span>` : '';
   const badgeEl = badgeElx;
-  const ownerLine = opts.hideOwner ? '' : `<div class="owner">${playerName(a.owner)}</div>`;
+  const cc = contactOf(a.owner);
+  const ownerLine = opts.hideOwner ? '' : `<div class="owner">${playerName(a.owner)}${cc ? ` <span class="muted" style="font-size:11px">· ${cc}</span>` : ''}</div>`;
   return `<div class="art">
     <div class="hex">${hexSVG(color, a.level)}${badgeEl}</div>
     <div class="info">
@@ -383,6 +390,13 @@ function renderInbox() {
 
 function renderMine() {
   if (!ME) { $('#mineList').innerHTML = $('#myNeedList').innerHTML = '<div class="empty">先登录</div>'; return; }
+  const c = playerOf(ME.id).contact || {};
+  if ($('#cQQ')) {
+    if (document.activeElement !== $('#cQQ')) $('#cQQ').value = c.qq || '';
+    if (document.activeElement !== $('#cDiscord')) $('#cDiscord').value = c.discord || '';
+    if (document.activeElement !== $('#cCorp')) $('#cCorp').value = c.corp || '';
+    $('#cHint').textContent = contactOf(ME.id) ? '已保存：' + contactOf(ME.id) : '还没填联系方式';
+  }
   const arts = S.artifacts.filter(a => a.owner === ME.id);
   $('#mineList').innerHTML = arts.length ? arts.map(a => artCard(a, {
     hideOwner: true, actions: `
@@ -401,6 +415,23 @@ function renderMine() {
       <button class="btn ghost mini" onclick="delNeed('${n.id}')">删除</button></div>
       ${n.note ? `<div class="muted" style="margin-top:4px">${n.note}</div>` : ''}</div>`).join('')
     : '<div class="empty">还没有需求，上面发布一条</div>';
+}
+
+async function saveContact() {
+  if (!ME) { toast('请先登录'); openAuth(); return; }
+  const contact = {
+    qq: ($('#cQQ').value || '').trim(),
+    discord: ($('#cDiscord').value || '').trim(),
+    corp: ($('#cCorp').value || '').trim()
+  };
+  await mutate(d => {
+    d.players = d.players || [];
+    let p = d.players.find(x => x.id === ME.id);
+    if (!p) { p = { id: ME.id, name: ME.name, note: '' }; d.players.push(p); }
+    p.contact = contact;
+  }, '更新联系方式');
+  toast('联系方式已保存');
+  await load();
 }
 
 function renderNotices() {
@@ -783,7 +814,7 @@ function openTrade(aid) {
   if (!dlgArtifact) return;
   if (dlgArtifact.owner === ME.id) { toast('这是你自己的神器'); return; }
   $('#dlgTarget').innerHTML = `${typeName(dlgArtifact.type_key)} ${dlgArtifact.level ? 'Lv' + dlgArtifact.level : ''} ${dlgArtifact.bonus ? '+' + dlgArtifact.bonus + '%' : ''}
-    ${dlgArtifact.module ? iconChip(dlgArtifact.module) : ''} ${dlgArtifact.side || ''} · 持有者 ${playerName(dlgArtifact.owner)}`;
+    ${dlgArtifact.module ? iconChip(dlgArtifact.module) : ''} ${dlgArtifact.side || ''} · 持有者 ${playerName(dlgArtifact.owner)}${contactOf(dlgArtifact.owner) ? `<div class="muted" style="margin-top:4px">联系：${contactOf(dlgArtifact.owner)}</div>` : '<div class="muted" style="margin-top:4px">对方还没填联系方式</div>'}`;
   const mine = S.artifacts.filter(a => a.owner === ME.id && a.status !== 'reserved');
   $('#dlgGive').innerHTML = '<option value="">不指定</option>'
     + mine.map(a => `<option value="${a.id}">${typeName(a.type_key)} ${a.level ? 'Lv' + a.level : ''} ${a.bonus ? '+' + a.bonus + '%' : ''} ${a.module ? '[有量子强化] ' : ''}${a.side || ''}${(a.qty || 1) > 1 ? ' ×' + a.qty : ''}</option>`).join('');
