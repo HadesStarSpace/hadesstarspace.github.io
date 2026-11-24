@@ -270,11 +270,16 @@ const REC = (() => {
   /* ---------- 识别单个槽位 ---------- */
   async function readBonus(img, p) {
     const W = p.w, cx = p.cx, cy = p.cy;
-    const regions = [
-      [cx - 0.75 * W, cy - 2.05 * W, cx + 0.9 * W, cy - 1.02 * W],   // 文物容器：药丸在格子上方
-      [cx + 0.10 * W, cy + 0.30 * W, cx + 1.30 * W, cy + 1.10 * W],   // 货物面板：药丸在右下
-      [cx - 0.85 * W, cy + 0.25 * W, cx + 0.45 * W, cy + 1.05 * W]    // 列表/货物面板另一侧
-    ];
+    const regions = W > 170
+      ? [ // 货物/列表面板：药丸贴在格子右下，格子与药丸常连成一块，W 偏大
+        [cx - 0.10 * W, cy - 0.10 * W, cx + 1.05 * W, cy + 0.50 * W],
+        [cx - 0.20 * W, cy + 0.05 * W, cx + 1.10 * W, cy + 0.60 * W]
+      ]
+      : [ // 文物容器面板：药丸在格子上方
+        [cx - 0.75 * W, cy - 2.05 * W, cx + 0.9 * W, cy - 1.02 * W],
+        [cx + 0.10 * W, cy + 0.30 * W, cx + 1.30 * W, cy + 1.10 * W]
+      ];
+    const cands = [];
     for (const box of regions) {
       const b = brightestBox(img, box, 900);
       let cc = null;
@@ -292,11 +297,12 @@ const REC = (() => {
         const digits = t.replace(/\D/g, '');
         if (digits.length >= 3) {
           const v = parseInt(digits.slice(0, 3), 10);
-          if (v >= 100 && v <= 999) return v;
+          if (v >= 100 && v <= 999) cands.push(v);
         }
       }
     }
-    return null;
+    const good = cands.filter(v => v >= 300 && v <= 400);
+    return good.length ? good[0] : (cands.length ? cands[0] : null);
   }
 
   async function readLevel(img, p) {
@@ -312,8 +318,8 @@ const REC = (() => {
         if (v >= 8 && v <= 20) return v;
       }
     }
-    // 其它版面（货物/列表）：格子左侧的一列文字，取 8~20 的数字
-    const cc2 = crop(img, cx - 3.6 * W, cy - 0.7 * W, cx - 0.45 * W, cy + 0.7 * W);
+    // 其它版面（货物/列表）：格子同一行左侧的文字，取 8~20 的数字
+    const cc2 = crop(img, cx - 3.6 * W, cy - 0.55 * W, cx - 0.75 * W, cy + 0.35 * W);
     if (cc2) {
       const t = await ocr(cc2.canvas, 6, '0123456789', 'otsu');
       const nums = (t.match(/\d{1,2}/g) || []).map(x => parseInt(x, 10));
@@ -323,40 +329,57 @@ const REC = (() => {
     return null;
   }
 
+  // 颜色→类型：按「圆点环带」的色相直方图判定，跳过泛光青色（hue 75~92）
+  const HUE_TYPES = [
+    { lo: 0, hi: 9, key: 'weapon', name: '战斗' },
+    { lo: 9, hi: 20, key: 'drone', name: '无人机' },
+    { lo: 20, hi: 42, key: 'trade', name: '运输舰' },
+    { lo: 42, hi: 56, key: 'drone', name: '无人机' },
+    { lo: 56, hi: 74, key: 'support', name: '支援' },
+    { lo: 93, hi: 110, key: 'shield', name: '护盾' },
+    { lo: 110, hi: 150, key: 'mining', name: '采矿' },
+    { lo: 150, hi: 180, key: 'weapon', name: '战斗' }
+  ];
   function classify(img, p) {
-    const W = p.w, H = p.h, cx = p.cx, cy = p.cy;
-    const cc = crop(img, cx - 0.48 * W, cy - 0.48 * H, cx + 0.48 * W, cy + 0.48 * H);
+    const W = p.w, cx = p.cx, cy = p.cy;
+    const cc = crop(img, cx - 0.5 * W, cy - 0.5 * W, cx + 0.5 * W, cy + 0.5 * W);
     if (!cc) return { name: null, key: null, score: 9 };
     const d = cc.canvas.getContext('2d').getImageData(0, 0, cc.w, cc.h).data;
-    const px = [];
-    const hues = [];
-    for (let i = 0, k = 0; i < cc.w * cc.h; i++, k += 4) {
-      const hsv = toHSV(d[k], d[k + 1], d[k + 2]);
-      if (hsv[1] > 70 && hsv[2] > 110) {
-        px.push([d[k], d[k + 1], d[k + 2], hsv[1] * hsv[2]]);
-        hues.push(hsv[0]);
+    const rIn = 0.30 * W, rOut = 0.50 * W;
+    const hist = new Float64Array(180);
+    let n = 0;
+    for (let y = 0; y < cc.h; y++) {
+      for (let x = 0; x < cc.w; x++) {
+        const dx = x - (cx - cc.x), dy = y - (cy - cc.y);
+        const r = Math.sqrt(dx * dx + dy * dy);
+        if (r < rIn || r > rOut) continue;
+        const k = (y * cc.w + x) * 4;
+        const hsv = toHSV(d[k], d[k + 1], d[k + 2]);
+        if (hsv[1] < 80 || hsv[2] < 90) continue;
+        const h = Math.round(hsv[0]);
+        if (h >= 75 && h <= 92) continue;   // 平台泛光，不代表类型
+        hist[h < 180 ? h : 0]++; n++;
       }
     }
-    if (px.length < 20) return { name: null, key: null, score: 9 };
-    px.sort((a, b) => a[3] - b[3]);
-    const top = px.slice(Math.max(0, px.length - Math.max(40, Math.round(px.length * 0.25))));
-    const med = i => {
-      const v = top.map(t => t[i]).sort((a, b) => a - b);
-      return v[Math.floor(v.length / 2)];
-    };
-    const rgb = [med(0), med(1), med(2)];
-    const ch = chroma(rgb);
-    const hs = hues.slice().sort((a, b) => a - b);
-    const hue = hs[Math.floor(hs.length / 2)];
-    let best = null;
-    for (const r of REFS) {
-      const dh = Math.min(Math.abs(hue - r.hue), 180 - Math.abs(hue - r.hue)) / 90;
-      const dc = Math.hypot(ch[0] - r.ref[0], ch[1] - r.ref[1], ch[2] - r.ref[2]);
-      const score = dh * 1.2 + dc * 3.0;
-      if (!best || score < best.score) best = { name: r.name, key: r.key, score };
+    if (n < 60) return { name: null, key: null, score: 9 };
+    const buckets = {};
+    for (const t of HUE_TYPES) {
+      let c = 0;
+      for (let h = t.lo; h < t.hi; h++) c += hist[h] + (hist[h + 180] || 0);
+      buckets[t.key + '|' + t.name] = (buckets[t.key + '|' + t.name] || 0) + c;
     }
-    return best;
+    let best = null;
+    for (const t of HUE_TYPES) {
+      const k = t.key + '|' + t.name;
+      const c = buckets[k] || 0;
+      if (!best || c > best.c) best = { c, key: t.key, name: t.name };
+    }
+    // 置信度：主类型占比。低于 0.35 视为不确定
+    const share = best.c / n;
+    return { name: share >= 0.35 ? best.name : null, key: share >= 0.35 ? best.key : null, score: 1 - share };
   }
+
+
 
   function readBadge(img, p) {
     const W = p.w, cx = p.cx, cy = p.cy;
