@@ -625,6 +625,7 @@ def load_blueprints():
                 print("图纸图标缺失", bp.get("key"), rel)
                 continue
             _BP.append((bp["key"], _norm_tile(bgr)))
+    load_shapes()
     print("图纸对照加载", [k for k, _ in _BP])
 
 
@@ -689,12 +690,12 @@ def _stretch64(bgr):
 def bp_slide(img, pill):
     """在药丸右上方的带子里滑动找方块（图纸小方块挂在这里），返回 [(分数, key)] 合表"""
     if not pill or not _BP:
-        return {}
+        return {}, None
     w = pill["x1"] - pill["x0"]; h = pill["h"]; cy = pill["cy"]
     x0 = max(0, int(pill["x0"] - 0.2 * w)); x1 = min(img.shape[1], int(pill["x1"] + 1.0 * w))
     y0 = max(0, int(cy - 3.2 * h)); y1 = min(img.shape[0], int(cy - 0.15 * h))
     if x1 - x0 < 30 or y1 - y0 < 30:
-        return {}
+        return {}, None
     reg = img[y0:y1, x0:x1]
     agg = {}
     best = (0.0, 0, 0, 0)
@@ -722,7 +723,102 @@ def bp_slide(img, pill):
                         sc = float((q * ref).mean())
                         if sc > agg.get(key, 0.0):
                             agg[key] = sc
-    return agg
+    return agg, ((x0 + best[1], y0 + best[2], best[3]) if best[3] else None)
+
+
+def _chip_box(img, win):
+    """把 NCC 找到的大致窗口收紧到图纸方块本身（方块只有 54px 左右，窗口留白会稀释图案差异）"""
+    if not win:
+        return None
+    bx, by, sw = win
+    m = int(0.45 * sw)
+    x0 = max(0, bx - m); y0 = max(0, by - m)
+    x1 = min(img.shape[1], bx + sw + m); y1 = min(img.shape[0], by + sw + m)
+    g = cv2.cvtColor(img[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY)
+    bg = int(np.median(g))
+    mask = (np.abs(g.astype(np.int16) - bg) > 6).astype(np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+    n, lab, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+    cxp = bx + sw / 2 - x0; cyp = by + sw / 2 - y0
+    pick = None
+    for j in range(1, n):
+        x, y, w, h, area = stats[j]
+        if area < 400:
+            continue
+        d = abs(x + w / 2 - cxp) + abs(y + h / 2 - cyp)
+        sc = area / (1 + 0.6 * d)
+        if pick is None or sc > pick[0]:
+            pick = (sc, (x0 + x, y0 + y, w, h))
+    if not pick:
+        return (bx, by, sw, sw)
+    x, y, w, h = pick[1]
+    if not (0.55 * sw <= w <= 1.45 * sw and 0.55 * sw <= h <= 1.45 * sw):
+        return (bx, by, sw, sw)
+    return (x, y, w, h)
+
+
+def _mask_sig(bgr, s=40, frac=0.62):
+    """二值化图案（抠掉底色），只留线条形状，用来分同色同框的不同图纸"""
+    g = bgr if bgr.ndim == 2 else cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    h, w = g.shape
+    cw = max(10, int(min(h, w) * frac))
+    g = g[(h - cw) // 2:(h - cw) // 2 + cw, (w - cw) // 2:(w - cw) // 2 + cw]
+    core = g[cw // 5:4 * cw // 5, cw // 5:4 * cw // 5].ravel()
+    hist = np.bincount(core, minlength=256).astype(np.float32).reshape(-1, 1)
+    bg = float(np.argmax(cv2.GaussianBlur(hist, (1, 7), 0).ravel()))
+    d = np.abs(g.astype(np.float32) - bg)
+    d = cv2.resize(d, (s, s), interpolation=cv2.INTER_AREA)
+    d = (d > 0.45 * float(np.percentile(d, 99.5))).astype(np.float32)
+    d = cv2.resize(d, (24, 24), interpolation=cv2.INTER_AREA)
+    d = (d > 0.4).astype(np.float32)
+    return d if d.sum() >= 10 else None
+
+
+_SHAPE = []      # [(key, 二值图案)]
+
+
+def load_shapes():
+    global _SHAPE
+    _SHAPE = []
+    idx = os.path.join(IMG, "bp", "index.json")
+    try:
+        with open(idx, encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return
+    for bp in data.get("blueprints", []):
+        for rel in [bp.get("img", "")] + list(bp.get("alts") or []):
+            bgr = cv2.imread(os.path.join(HERE, rel))
+            if bgr is None:
+                continue
+            for s in (36, 40, 44):
+                sig = _mask_sig(bgr, s, 0.62)
+                if sig is not None:
+                    _SHAPE.append((bp["key"], sig))
+
+
+def _shape_scores(img, win):
+    """图纸方块与参考图的图案重合度。外框、底色一模一样时，靠这个分「矿物粉碎 / 氢气火箭」"""
+    win = _chip_box(img, win)
+    if not win or not _SHAPE:
+        return {}
+    best = {}
+    for pad in (0, 1, 2):
+        for dy in (0, -1, 1):
+            for dx in (0, 1, -1):
+                tile = img[win[1] + dy + pad:win[1] + win[3] + dy - pad,
+                           win[0] + dx + pad:win[0] + win[2] + dx - pad]
+                if tile.shape[0] < 20 or tile.shape[1] < 20:
+                    continue
+                q = _mask_sig(tile, 40, 0.62)
+                if q is None:
+                    continue
+                for key, ref in _SHAPE:
+                    inter = float((q * ref).sum()); uni = float(q.sum() + ref.sum() - inter)
+                    sc = inter / uni if uni else 0.0
+                    if sc > best.get(key, 0.0):
+                        best[key] = sc
+    return best
 
 
 # 图纸归属：运输舰神器（黄）=贸易爆发；采矿舰神器（紫）=矿物粉碎 + 氢气火箭
@@ -738,7 +834,8 @@ def bp_scan(img, pill, layout="", type_key=""):
     old = bp_match(img, pill, layout) or ""
     if old:
         scores[old] = 0.80
-    agg = bp_slide(img, pill)
+    agg, win = bp_slide(img, pill)
+    shape = _shape_scores(img, win)
     for k, v in agg.items():
         scores[k] = max(scores.get(k, 0.0), v)
     top = sorted(scores.items(), key=lambda kv: -kv[1])[:2]
@@ -754,11 +851,18 @@ def bp_scan(img, pill, layout="", type_key=""):
     # 暗版图纸彼此长得很像（都是八边形线条），分数拉不开时用神器类型当先验：
     # 运输舰神器→贸易爆发，采矿舰神器→矿物粉碎（图纸是给这类模块加成的）
     fam = BP_FAMILY.get(type_key or "", ())
-    if fam and best[1] >= 0.84:
-        for k, v in top:
-            if k.split("_")[0] in fam and v >= 0.84:
-                return k, True, []
-    sug = [k for k, v in top[:2] if k] if best[1] >= 0.80 else []
+    if fam:
+        cand = [(k, v) for k, v in scores.items() if k.split("_")[0] in fam and v >= 0.84]
+        if cand:
+            # 同色同框（外框、底色一样）时整体相似度会虚高，靠图案重合度分高下
+            pick = max(cand, key=lambda kv: kv[1] + 0.6 * shape.get(kv[0], 0.0))
+            if pick[1] >= 0.88 or shape.get(pick[0], 0.0) >= 0.18:
+                return pick[0], True, []
+    sug = []
+    if best[1] >= 0.80:
+        comb = sorted(((k, v + 0.6 * shape.get(k, 0.0)) for k, v in scores.items() if v >= 0.78),
+                      key=lambda kv: -kv[1])
+        sug = [k for k, _ in comb[:2]]
     return "", saw, sug
 
 
