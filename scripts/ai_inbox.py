@@ -349,6 +349,43 @@ def player_from_name(fn):
         return head
 
 
+def find_badge(img, x0, y0, x1, y1):
+    """在给定窗口里找出量子强化图标本体（亮/有颜色的那块），返回裁好的正方形图"""
+    H, W = img.shape[:2]
+    x0 = max(0, int(x0)); y0 = max(0, int(y0)); x1 = min(W, int(x1)); y1 = min(H, int(y1))
+    if x1 - x0 < 8 or y1 - y0 < 8:
+        return None
+    sub = img[y0:y1, x0:x1]
+    hsv = cv2.cvtColor(sub, cv2.COLOR_BGR2HSV)
+    v = hsv[:, :, 2].astype(np.int16)
+    sat = hsv[:, :, 1].astype(np.int16)
+    mask = ((v > 105) | (sat > 70)).astype(np.uint8) * 255
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+    cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not cnts:
+        return None
+    boxes = [cv2.boundingRect(c) for c in cnts]
+    # 量子图标是方形小块、位置在神器大图标上方：先筛形状，再取最上面那个
+    cand = [b for b in boxes if b[2] * b[3] >= 300 and 0.55 <= (b[2] / max(1, b[3])) <= 2.2]
+    if not cand:
+        cand = [b for b in boxes if b[2] * b[3] >= 300]
+    if not cand:
+        return None
+    # 药丸在左边，量子图标在右边：取最右的方形块，避免把药丸一起框进来
+    bx, by, bw, bh = max(cand, key=lambda b: b[0] + b[2] / 2.0)
+    if bw < 10 or bh < 10:
+        return None
+    pad = int(max(bw, bh) * 0.12) + 3
+    cx0 = max(0, bx - pad); cy0 = max(0, by - pad)
+    cx1 = min(sub.shape[1], bx + bw + pad); cy1 = min(sub.shape[0], by + bh + pad)
+    crop = sub[cy0:cy1, cx0:cx1]
+    side = max(crop.shape[:2]) + 6
+    out = np.zeros((side, side, 3), dtype=np.uint8)
+    oy = (side - crop.shape[0]) // 2; ox = (side - crop.shape[1]) // 2
+    out[oy:oy + crop.shape[0], ox:ox + crop.shape[1]] = crop
+    return out
+
+
 def grid_windows(img, it):
     p = it["pill"]
     w, h = p["w"], p["h"]
@@ -359,7 +396,10 @@ def grid_windows(img, it):
         if x1 - x0 < 6 or y1 - y0 < 6:
             return None
         return img[y0:y1, x0:x1]
-    icon = cut(0.58, 1.38, 0.30, 1.75, "y1")      # 量子图标（在药丸下方）
+    icon = find_badge(img, p["x0"] + 0.30 * w, p["y1"] + 0.02 * h,
+                      p["x0"] + 2.20 * w, p["y1"] + 2.50 * h)
+    if icon is None:
+        icon = cut(0.58, 1.38, 0.30, 1.75, "y1")
     # 整格预览：从药丸上方一点往下到格底，横向别越到下一格
     card = cut(-0.60, 0.50, -0.30, 9.60, "y0")
     side = "暗"
@@ -370,8 +410,8 @@ def grid_windows(img, it):
     return dict(icon=icon, card=card, side=side)
 
 
-def square_center(bgr, keep=0.92):
-    """图标缩略图裁成正方形（卡片小方框能刚好铺满，不被裁掉主体）；签名仍用原窗口算"""
+def square_center(bgr, keep=0.85):
+    """裁成正方形：卡片上的小方框是正方形、按铺满显示，图不方就会“没对准”"""
     if bgr is None or bgr.size == 0:
         return bgr
     h, w = bgr.shape[:2]
@@ -421,6 +461,7 @@ def main():
         for it in items:
             loc = grid_windows(img, it) if it.get("layout") == "grid" else windows(img, it)
             icon = loc.get("icon") if loc else None
+            icon = square_center(icon) if icon is not None else None
             sig = grad_sig(icon) if icon is not None else ""
             res["items"].append({
                 "type_key": it.get("type"), "level": it.get("level"), "bonus": it.get("bonus"),
