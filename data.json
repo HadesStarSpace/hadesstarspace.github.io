@@ -1,5 +1,5 @@
 {
- "updated": 1795493423,
+ "updated": 1795493427,
  "players": [
   {
    "id": "pmwu5fc4o",
@@ -15,6 +15,17 @@
  "needs": [
   {
    "id": "nmwu6fccg",
+   "player": "pmwu5fc4o",
+   "status": "open",
+   "type_key": "mining",
+   "module": "tradeburst",
+   "side": "光",
+   "min_level": 11,
+   "min_bonus": 360,
+   "note": ""
+  },
+  {
+   "id": "nmwu6ffhq",
    "player": "pmwu5fc4o",
    "status": "open",
    "type_key": "mining",
