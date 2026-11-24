@@ -1,0 +1,54 @@
+<!doctype html><meta charset="utf-8"><body style="background:#111;color:#ddd;font:12px monospace">
+<div id="out">loading</div>
+<script src="tess/tesseract.min.js"></script>
+<script src="recog.js?v=dbg2"></script>
+<script>
+const q = new URLSearchParams(location.search);
+const src = q.get('img') || 'debug_img.png';
+const out = document.querySelector('#out');
+function cropCanvas(cv, x0, y0, x1, y1) {
+  const c = document.createElement('canvas');
+  c.width = Math.round(x1 - x0); c.height = Math.round(y1 - y0);
+  const g = c.getContext('2d');
+  g.drawImage(cv, Math.round(x0), Math.round(y0), c.width, c.height, 0, 0, c.width, c.height);
+  return c;
+}
+window.tryAll = async () => {
+  const img = await new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = src; });
+  const cv = document.createElement('canvas'); cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+  cv.getContext('2d').drawImage(img, 0, 0);
+  const plates = REC._test.detectPlates(cv.getContext('2d').getImageData(0, 0, cv.width, cv.height));
+  const log = [];
+  for (const p of plates) {
+    const W = p.w, cx = p.cx, cy = p.cy;
+    for (const band of [
+      ['lvA', cx - 2.6 * W, cy - 0.35 * W, cx - 1.85 * W, cy + 0.10 * W],
+      ['lvB', cx - 2.9 * W, cy - 0.55 * W, cx - 1.7 * W, cy + 0.20 * W],
+    ]) {
+      const cc = cropCanvas(cv, band[1], band[2], band[3], band[4]);
+      for (const psm of [7, 6, 13]) {
+        for (const mode of ['otsu', 'fixed']) {
+          const t = await REC._test.ocr(cc, psm, '0123456789', mode);
+          log.push([band[0], psm, mode, t]);
+        }
+      }
+    }
+    for (const band of [
+      ['bnA', cx - 0.15 * W, cy + 0.10 * W, cx + 1.05 * W, cy + 0.62 * W],
+      ['bnB', cx - 0.30 * W, cy + 0.05 * W, cx + 1.20 * W, cy + 0.75 * W],
+    ]) {
+      const cc = cropCanvas(cv, band[1], band[2], band[3], band[4]);
+      for (const psm of [7, 6, 11]) {
+        for (const mode of ['otsu', 'green']) {
+          const t = await REC._test.ocr(cc, psm, '0123456789+%', mode);
+          log.push([band[0], psm, mode, t]);
+        }
+      }
+    }
+    log.push(['---']);
+  }
+  out.textContent = JSON.stringify(log);
+  return log;
+};
+</script>
+</body>

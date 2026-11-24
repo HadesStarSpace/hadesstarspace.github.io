@@ -1,23 +1,44 @@
-name: AI 识别
+name: AI 识别入库
 
 on:
+  push:
+    paths:
+      - 'inbox/**'
   workflow_dispatch:
-    inputs:
-      path:
-        description: 仓库内图片路径
-        required: true
-        default: testimg/B.png
 
 permissions:
-  contents: read
-  models: read
+  contents: write
+
+concurrency:
+  group: ai-recognize
+  cancel-in-progress: false
 
 jobs:
-  run:
+  recognize:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: 调模型
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python scripts/ai_vision.py "${{ inputs.path }}"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 缓存 pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-rapidocr-${{ runner.os }}
+      - name: 安装识别依赖
+        run: |
+          python -m pip install -q --no-input rapidocr_onnxruntime opencv-python-headless numpy
+      - name: AI 识别截图并写回 data.json
+        run: python scripts/ai_inbox.py
+      - name: 提交结果
+        run: |
+          git config user.name "qsx-ai"
+          git config user.email "qsx-ai@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "没有变化"
+          else
+            git commit -m "AI 识别入库 $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            git push
+          fi

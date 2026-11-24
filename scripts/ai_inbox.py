@@ -1,0 +1,290 @@
+"""AI 识别（跑在 GitHub Actions 里）：RapidOCR 读文字，不依赖截图分辨率。
+
+inbox 里的文件名格式：<base64url 用户名>__<时间戳>_<序号>.png
+"""
+import base64
+import hashlib
+import json
+import os
+import re
+import sys
+import time
+
+import cv2
+import numpy as np
+from rapidocr_onnxruntime import RapidOCR
+
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA = os.path.join(HERE, "data.json")
+INBOX = os.path.join(HERE, "inbox")
+IMG = os.path.join(HERE, "img")
+
+ENGINE = RapidOCR()
+
+TYPES = [("运输舰", "trade"), ("武器", "weapon"), ("战斗", "weapon"), ("护盾", "shield"),
+         ("采矿", "mining"), ("支援", "support"), ("无人机", "drone")]
+
+ICON_MATCH = 0.13
+
+
+# ---------- 签名：与浏览器端 recog.js 的 gradSig 保持一致 ----------
+def grad_sig(icon_bgr):
+    if icon_bgr is None or icon_bgr.size == 0:
+        return b""
+    g = cv2.cvtColor(cv2.resize(icon_bgr, (32, 32), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2GRAY)
+    g = g.astype(np.float64)
+    lo, hi = np.percentile(g, 5), np.percentile(g, 95)
+    span = max(8.0, hi - lo)
+    g = np.clip((g - lo) * 255.0 / span, 0, 255)
+    raw = np.zeros((16, 16), dtype=np.float64)
+    for y in range(16):
+        for x in range(16):
+            bx, by = x * 2, y * 2
+            acc = 0.0
+            for dy in range(2):
+                for dx in range(2):
+                    px, py = bx + dx, by + dy
+                    gx = g[py, min(31, px + 1)] - g[py, max(0, px - 1)]
+                    gy = g[min(31, py + 1), px] - g[max(0, py - 1), px]
+                    acc += abs(gx) + abs(gy)
+            raw[y, x] = acc / 4.0
+    mx = raw.max()
+    out = (raw * (255.0 / mx if mx > 1 else 0)).round().clip(0, 255).astype(np.uint8)
+    return base64.b64encode(out.tobytes()).decode()
+
+
+def sig_bytes(sig):
+    try:
+        return np.frombuffer(base64.b64decode(sig), dtype=np.uint8).reshape(16, 16).astype(np.int16)
+    except Exception:
+        return None
+
+
+def sig_align(a, b):
+    A, B = sig_bytes(a), sig_bytes(b)
+    if A is None or B is None:
+        return 9.0
+    best = 9.0
+    for dy in range(-2, 3):
+        for dx in range(-2, 3):
+            xs0, xs1 = max(0, dx), min(16, 16 + dx)
+            ys0, ys1 = max(0, dy), min(16, 16 + dy)
+            if xs1 <= xs0 or ys1 <= ys0:
+                continue
+            part = A[ys0:ys1, xs0:xs1] - B[0:ys1 - ys0, 0:xs1 - xs0]
+            acc = np.sqrt(np.mean((part / 255.0) ** 2))
+            if acc < best:
+                best = acc
+    return float(best)
+
+
+# ---------- OCR → 条目 ----------
+def ocr_lines(path):
+    res, _ = ENGINE(path)
+    lines = []
+    for box, txt, score in (res or []):
+        if score is None or float(score) < 0.4:
+            continue
+        xs = [p[0] for p in box]
+        ys = [p[1] for p in box]
+        lines.append(dict(x0=min(xs), x1=max(xs), cy=sum(ys) / 4.0,
+                          h=max(ys) - min(ys), t=str(txt)))
+    return lines
+
+
+def parse_items(path, img):
+    H = img.shape[0]
+    lines = ocr_lines(path)
+    names = sorted([l for l in lines if "神器" in l["t"]], key=lambda l: l["cy"])
+    levels = [l for l in lines if "等级" in l["t"]]
+    pills = [l for l in lines if re.search(r"\d{3}\s*%", l["t"])]
+    items = []
+    for nm in names:
+        lv = None
+        for l in levels:
+            if nm["cy"] < l["cy"] < nm["cy"] + 3 * nm["h"]:
+                if lv is None or l["cy"] < lv["cy"]:
+                    lv = l
+        bn = None
+        for l in pills:
+            if l["x0"] > nm["x1"] and nm["cy"] < l["cy"] < nm["cy"] + 3 * nm["h"]:
+                if bn is None or abs(l["cy"] - nm["cy"]) < abs(bn["cy"] - nm["cy"]):
+                    bn = l
+        tkey = next((k for kw, k in TYPES if kw in nm["t"]), None)
+        lvl = None
+        if lv:
+            m = re.search(r"(\d{1,2})", lv["t"])
+            if m:
+                lvl = int(m.group(1))
+        bns = None
+        if bn:
+            m = re.search(r"(\d{3})", bn["t"])
+            if m:
+                bns = int(m.group(1))
+        if bns is not None and not (280 <= bns <= 420):
+            bns = None
+        it = dict(type=tkey, level=lvl, bonus=bns, name_y=nm["cy"], name_h=nm["h"],
+                  text_x=nm["x1"], pill=bn)
+        prev_y = (items[-1]["band_mid"] if items else 0)
+        it["band_mid"] = nm["cy"] + nm["h"] * 1.3
+        it["band"] = (int(max(0, prev_y)), int(min(H, it["band_mid"] + nm["h"] * 0.9)))
+        items.append(it)
+    return items
+
+
+def windows(img, it):
+    """药丸定位：图标窗口固定挂在药丸左上方（同一张图的版式一致，跨分辨率无影响）"""
+    pill = it.get("pill")
+    if not pill:
+        return None
+    w = pill["x1"] - pill["x0"]
+    h = pill["h"]
+    if w < 10 or h < 8:
+        return None
+    def cut(xa, xb, ya, yb):
+        x0 = int(pill["x0"] + xa * w); x1 = int(pill["x0"] + xb * w)
+        y0 = int(pill["cy"] + ya * h); y1 = int(pill["cy"] + yb * h)
+        x0 = max(0, x0); y0 = max(0, y0)
+        x1 = min(img.shape[1], x1); y1 = min(img.shape[0], y1)
+        if x1 - x0 < 6 or y1 - y0 < 6:
+            return None
+        return img[y0:y1, x0:x1]
+    icon = cut(0.50, 1.70, -3.2, -0.7)          # 量子图标窗口（含图标本体）
+    card = cut(-1.10, 1.95, -3.6, 0.35)         # 整条神器预览
+    side = "暗"
+    if card is not None:
+        v = cv2.cvtColor(card, cv2.COLOR_BGR2HSV)[:, :, 2]
+        if float((v > 230).mean()) > 0.10:
+            side = "光"
+    return dict(icon=icon, card=card, side=side)
+
+
+# ---------- 入库 ----------
+def save_img(bgr, prefix):
+    ok, buf = cv2.imencode(".jpg", bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
+    if not ok:
+        return ""
+    name = "%s_%s.jpg" % (prefix, hashlib.sha1(buf.tobytes()).hexdigest()[:12])
+    os.makedirs(IMG, exist_ok=True)
+    with open(os.path.join(IMG, name), "wb") as f:
+        f.write(buf.tobytes())
+    return "img/" + name
+
+
+def ensure_player(data, name):
+    for p in data.get("players", []):
+        if p.get("name") == name:
+            return p["id"]
+    pid = "p%d" % (int(time.time() * 1000) % 100000000)
+    data.setdefault("players", []).append({"id": pid, "name": name, "note": ""})
+    return pid
+
+
+def next_aid(data):
+    n = 1
+    for a in data.get("artifacts", []):
+        try:
+            n = max(n, int(str(a["id"])[1:]) + 1)
+        except Exception:
+            pass
+    return "a%d" % n
+
+
+def icon_id_for(data, sig, tkey):
+    """按签名 + 类型找已有图标 id；找不到就新建一个"""
+    icons = data.setdefault("icons", {})
+    if sig:
+        for k, v in icons.items():
+            if v.get("type") == tkey and v.get("sig") and sig_align(v["sig"], sig) < ICON_MATCH:
+                v["n"] = (v.get("n") or 0) + 1
+                return k
+    if not sig:
+        return ""
+    n = 1
+    while ("ic" + str(n)) in icons:
+        n += 1
+    icons["ic" + str(n)] = {"sig": sig, "thumb": "", "n": 1, "type": tkey}
+    return "ic" + str(n)
+
+
+def merge(data):
+    """完全相同的（同主人+类型+等级+加成+图标+光暗+状态）合并，累加数量"""
+    out, by = [], {}
+    for a in data.get("artifacts", []):
+        if a.get("status") == "reserved" or a.get("level") is None or a.get("bonus") is None:
+            out.append(a)
+            continue
+        k = "|".join([str(a.get("owner")), str(a.get("type_key")), str(a.get("level")),
+                      str(a.get("bonus")), str(a.get("module") or ""), str(a.get("side") or ""),
+                      str(a.get("status") or "")])
+        if k in by:
+            by[k]["qty"] = (by[k].get("qty") or 1) + (a.get("qty") or 1)
+        else:
+            a["qty"] = a.get("qty") or 1
+            by[k] = a
+            out.append(a)
+    data["artifacts"] = out
+
+
+def player_from_name(fn):
+    stem = os.path.splitext(fn)[0]
+    head = stem.split("__")[0]
+    try:
+        return base64.urlsafe_b64decode(head + "=" * (-len(head) % 4)).decode("utf-8")
+    except Exception:
+        return head
+
+
+def main():
+    data = json.load(open(DATA, encoding="utf-8"))
+    data.setdefault("icons", {})
+    data.setdefault("notices", [])
+    files = sorted(f for f in os.listdir(INBOX) if not f.startswith("."))
+    if not files:
+        print("inbox empty")
+        return
+    for fn in files:
+        path = os.path.join(INBOX, fn)
+        player = player_from_name(fn)
+        img = cv2.imread(path)
+        print("处理", fn, "玩家", player, img.shape if img is not None else None)
+        if img is None:
+            os.remove(path)
+            continue
+        try:
+            items = parse_items(path, img)
+        except Exception as e:
+            items = []
+            print("识别异常", e)
+        pid = ensure_player(data, player)
+        added = 0
+        for it in items:
+            if not it.get("type") or not it.get("level") or not it.get("bonus"):
+                continue
+            loc = windows(img, it)
+            sig = grad_sig(loc["icon"]) if loc and loc.get("icon") is not None else ""
+            iid = icon_id_for(data, sig, it.get("type"))
+            data["artifacts"].append({
+                "id": next_aid(data), "owner": pid,
+                "type_key": it.get("type"), "level": it.get("level"), "bonus": it.get("bonus"),
+                "module": iid, "side": loc.get("side") if loc else "暗", "status": "have", "note": "",
+                "img": save_img(loc["card"], "p") if loc and loc.get("card") is not None else "",
+                "badge_img": save_img(loc["icon"], "b") if loc and loc.get("icon") is not None else "",
+                "sig": sig, "from": fn,
+            })
+            added += 1
+        merge(data)
+        total = len(data["artifacts"])
+        data["notices"].append({"t": int(time.time()), "player": player, "img": "",
+                                "note": "AI 识别完成：%s 张图认出 %d 件（当前共 %d 条）" % (fn, added, total)})
+        os.remove(path)
+        print("入库", added)
+    data["updated"] = int(time.time())
+    data["notices"] = data["notices"][-30:]
+    with open(DATA, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=1)
+    print("done")
+
+
+if __name__ == "__main__":
+    main()

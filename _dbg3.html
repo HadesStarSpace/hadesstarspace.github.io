@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><body style="background:#111;color:#ddd;font:12px monospace">
+<div id="out">loading</div>
+<script src="recog.js?v=dbg3"></script>
+<script>
+const q = new URLSearchParams(location.search);
+const src = q.get('img') || 'debug_img.png';
+window.plates = async () => {
+  const img = await new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = src; });
+  const cv = document.createElement('canvas'); cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+  cv.getContext('2d').drawImage(img, 0, 0);
+  const p = REC._test.detectPlates(cv.getContext('2d').getImageData(0, 0, cv.width, cv.height));
+  const r = p.map(x => [Math.round(x.cx), Math.round(x.cy), Math.round(x.w), Math.round(x.h)]);
+  document.querySelector('#out').textContent = JSON.stringify(r);
+  return r;
+};
+</script>
+</body>

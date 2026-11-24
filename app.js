@@ -364,42 +364,83 @@ function renderNotices() {
     : '<div class="empty">还没有记录</div>';
 }
 
-/* ---------------- 本地识别（秒级，不走云端） ---------------- */
+/* ---------------- AI 识别（上传到仓库 inbox，Actions 里跑深度学习 OCR） ---------------- */
 let pendingSlots = [], pendingBadges = [];
+const aiState = { busy: false, baseline: 0, head: '' };
+
+function fileToB64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(',')[1] || '');
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+async function putFile(path, b64, message) {
+  const body = { message, content: b64, branch: GH.branch };
+  const r = await fetch(API + '/contents/' + pathEnc(path), {
+    method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, H), body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error('上传失败 ' + r.status + ' ' + (await r.text()).slice(0, 120));
+  return r.json();
+}
+
+function aiWait(baseline) {
+  let tries = 0;
+  const tick = async () => {
+    tries++;
+    try {
+      const d = await readData();
+      const n = (d && d.artifacts ? d.artifacts.length : 0);
+      if (n !== baseline) {
+        await load();
+        const added = n - baseline;
+        $('#upHint').textContent = '';
+        toast(added > 0 ? `AI 识别完成：新增 ${added} 条（相同的已合并成 ×N）` : 'AI 识别完成');
+        switchTab('mine');
+        aiState.busy = false;
+        return;
+      }
+    } catch (e) { }
+    if (tries > 40) {                    // 约 4 分钟
+      $('#upHint').textContent = '';
+      toast('AI 还在识别，结果稍后会自动出现在「我的」');
+      aiState.busy = false;
+      return;
+    }
+    setTimeout(tick, 6000);
+  };
+  setTimeout(tick, 8000);
+}
+
 $('#pickBtn').onclick = () => $('#file').click();
 $('#file').onchange = async e => {
-  const f = e.target.files[0];
-  if (!f) return;
+  const files = Array.from($('#file').files || []);
+  if (!files.length) return;
   if (!ME) { toast('请先登录'); openAuth(); return; }
-  $('#upHint').textContent = '识别中…（首次需加载 OCR 模型约 3 秒）';
+  if (aiState.busy) { toast('上一批还在识别，稍等一下'); return; }
+  aiState.busy = true;
   $('#resultCard').classList.add('hidden');
+  $('#upHint').textContent = `正在上传 ${files.length} 张图…`;
   try {
-    const t0 = performance.now();
-    pendingSlots = [];
-    let fail = '';
-    const files = Array.from($('#file').files || []);
-    for (let fi = 0; fi < files.length; fi++) {
-      const tag = files.length > 1 ? `第 ${fi + 1}/${files.length} 张 · ` : '';
-      const res = await REC.recognize(files[fi], (i, n) => {
-        $('#upHint').textContent = `${tag}识别中… ${i + 1}/${n}`;
-      });
-      if (!res.ok) { fail = tag + res.note; continue; }
-      pendingSlots = pendingSlots.concat(res.slots.map(s => ({
-      type_key: s.type_key || '', level: s.level, bonus: s.bonus,
-      side: s.side || '', module: s.module || '', status: 'have',
-      plate: s.plate, badge_img: s.badge_img, badge_present: !!s.badge_present,
-        sig: s.sig || '', slot: s.slot
-      })));
+    const base = (await readData() || { artifacts: [] }).artifacts.length;
+    aiState.baseline = base;
+    const head = b64url(ME.name);
+    const ts = Math.floor(Date.now() / 1000);
+    for (let i = 0; i < files.length; i++) {
+      const b64 = await fileToB64(files[i]);
+      await putFile(`inbox/${head}__${ts}_${i}.png`, b64, `AI 识别上传 ${ME.name} ${i + 1}/${files.length}`);
+      $('#upHint').textContent = `已上传 ${i + 1}/${files.length} · AI 识别中（约 1~2 分钟）`;
     }
-    if (!pendingSlots.length) { $('#upHint').textContent = ''; toast(fail || '没认出神器'); return; }
-    renderResult();
-    const ms = Math.round(performance.now() - t0);
-    $('#upHint').textContent = `识别完成 ${pendingSlots.length} 件 · ${files.length} 张图 · ${ms} ms`;
-  } catch (err) {
-    $('#upHint').textContent = '';
-    toast('识别失败：' + err.message);
-  } finally {
     $('#file').value = '';
+    aiWait(base);
+    $('#upHint').textContent = `AI 识别中（约 1~2 分钟），可以先去忙别的，结果会自动出现在「我的」`;
+  } catch (err) {
+    aiState.busy = false;
+    $('#upHint').textContent = '';
+    $('#file').value = '';
+    toast('AI 上传失败：' + err.message);
   }
 };
 
