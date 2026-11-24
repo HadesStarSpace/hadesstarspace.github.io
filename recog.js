@@ -277,7 +277,7 @@ const REC = (() => {
       [cx - 0.20 * W, cy + 0.55 * W, cx + 0.95 * W, cy + 1.20 * W],   // 药丸在正下方
       [cx - 1.90 * W, cy - 0.30 * W, cx - 0.25 * W, cy + 0.55 * W]    // 药丸在左侧
     ];
-    let fallback = null;
+    const cands = [];
     for (const box of regions) {
       const b = brightestBox(img, box, 900);
       const cc = (b && b[2] / b[3] > 1.4 && b[2] / b[3] < 3.4)
@@ -286,42 +286,40 @@ const REC = (() => {
       if (!cc) continue;
       const inner = crop(cc.canvas, cc.w * 0.10, cc.h * 0.08, cc.w * 0.92, cc.h * 0.92);
       if (!inner) continue;
-      for (const [psm, mode] of [[7, 'otsu'], [8, 'fixed']]) {
+      for (const [psm, mode] of [[7, 'otsu'], [8, 'fixed'], [8, 'otsu']]) {
         const t = await ocr(inner.canvas, psm, '0123456789+%', mode);
         const digits = t.replace(/\D/g, '');
         if (digits.length < 3) continue;
         const v = parseInt(digits.slice(0, 3), 10);
-        if (v < 100 || v > 999) continue;
-        if (v >= 300 && v <= 400) return v;          // 神器加成基本都是 3xx%，优先采信
-        if (fallback == null) fallback = v;
+        if (v >= 300 && v <= 400) cands.push(v);      // 神器加成基本都在 3xx%
       }
     }
-    return fallback;
+    if (!cands.length) return null;
+    const freq = {};
+    for (const v of cands) freq[v] = (freq[v] || 0) + 1;
+    return +Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0];
   }
 
   async function readLevel(img, p) {
     const W = p.w, cx = p.cx, cy = p.cy;
-    const bands = [
-      [cx - 3.6 * W, cy - 0.55 * W, cx - 0.75 * W, cy + 0.35 * W],   // 列表：等级在格子左侧同一行
-      [cx - 0.80 * W, cy + 0.86 * W, cx - 0.38 * W, cy + 1.32 * W],  // 容器：等级在格子左下
-      [cx - 2.4 * W, cy - 1.05 * W, cx - 0.55 * W, cy - 0.15 * W],   // 放大单件：等级在格子上方偏左
-      [cx - 2.4 * W, cy - 0.20 * W, cx - 0.55 * W, cy + 0.70 * W]
-    ];
-    const votes = {};
-    for (const b of bands) {
-      const cc = crop(img, b[0], b[1], b[2], b[3]);
-      if (!cc) continue;
-      for (const psm of [7, 6]) {
+    const pick = async (band, psms) => {
+      const cc = crop(img, band[0], band[1], band[2], band[3]);
+      if (!cc) return null;
+      for (const psm of psms) {
         const t = await ocr(cc.canvas, psm, '0123456789', 'otsu');
         const nums = (t.match(/\d{1,2}/g) || []).map(x => parseInt(x, 10)).filter(n => n >= 8 && n <= 15);
-        if (!nums.length) continue;
-        for (const n of nums) votes[n] = (votes[n] || 0) + 1;
-        const top = Object.entries(votes).sort((a, b2) => b2[1] - a[1])[0];
-        if (top[1] >= 2) return +top[0];          // 两票一致就算认出来
+        if (nums.length) return nums[0];
       }
+      return null;
+    };
+    if (W > 170) {
+      // 货物/列表面板：等级在格子左侧同一行
+      return await pick([cx - 3.6 * W, cy - 0.55 * W, cx - 0.75 * W, cy + 0.35 * W], [7, 6]);
     }
-    const top = Object.entries(votes).sort((a, b2) => b2[1] - a[1])[0];
-    return top ? +top[0] : null;
+    // 文物容器：等级在格子左下
+    const v = await pick([cx - 0.80 * W, cy + 0.86 * W, cx - 0.38 * W, cy + 1.32 * W], [10, 7, 8]);
+    if (v != null) return v;
+    return await pick([cx - 2.4 * W, cy - 1.05 * W, cx - 0.55 * W, cy - 0.15 * W], [7, 6]);
   }
 
   // 颜色→类型：按「圆点环带」的色相直方图判定，跳过泛光青色（hue 75~92）
