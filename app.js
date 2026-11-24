@@ -31,7 +31,7 @@ const TYPE_COLOR = Object.fromEntries(TYPES.map(t => [t.key, t.color]));
 
 const $ = s => document.querySelector(s);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-let S = { players: [], artifacts: [], needs: [], trades: [], notices: [], templates: {} };
+let S = { players: [], artifacts: [], needs: [], trades: [], notices: [], templates: {}, icons: {} };
 let AUTH = JSON.parse(localStorage.getItem('qs_auth') || 'null');
 let ME = null;
 let dlgArtifact = null, editing = null, polling = false;
@@ -39,11 +39,57 @@ let dlgArtifact = null, editing = null, polling = false;
 function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('on'); setTimeout(() => e.classList.remove('on'), 2200); }
 const typeName = k => (TYPES.find(t => t.key === k) || {}).name || '未知';
 const moduleName = k => (MODULES.find(m => m[0] === k) || [])[1] || '';
+/* ---- 量子强化：只按图标认，不给名字 ---- */
+const iconOf = id => ((S.icons || {})[id]) || null;
+const ICON_DUP = 0.05;                       // 两张截图同一图标的距离上限
+function iconImg(id, size) {
+  const ic = iconOf(id);
+  if (!ic || !ic.thumb) return '';
+  const s2 = size || 18;
+  return `<img src="${ic.thumb}" style="height:${s2}px;width:${s2}px;object-fit:cover;border-radius:4px;vertical-align:-${Math.round(s2 * 0.2)}px">`;
+}
+function iconChip(id) { return id ? `<span class="chip" title="量子强化">${iconImg(id, 14)}</span>` : ''; }
+function findIconBySig(d, sig) {
+  if (!sig || !d.icons) return null;
+  let best = null;
+  for (const [id, ic] of Object.entries(d.icons)) {
+    if (!ic || !ic.sig) continue;
+    let dist;
+    try { dist = REC._test.sigDistance(REC._unb64(ic.sig), REC._unb64(sig)); } catch (e) { continue; }
+    if (!best || dist < best.dist) best = { id, dist };
+  }
+  return best && best.dist < ICON_DUP ? best.id : null;
+}
+function ensureIcon(d, sig, thumb) {
+  d.icons = d.icons || {};
+  let id = findIconBySig(d, sig);
+  if (!id) {
+    id = 'ic' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+    d.icons[id] = { sig, thumb: thumb || '', n: 0, t: Math.floor(Date.now() / 1000) };
+  } else if (thumb && !d.icons[id].thumb) d.icons[id].thumb = thumb;
+  d.icons[id].n = (d.icons[id].n || 0) + 1;
+  return id;
+}
+function iconBarHTML(selected, allLabel) {
+  const ids = Object.keys(S.icons || {});
+  const btn = (v, inner) => `<button class="iconbtn ${selected === v ? 'on' : ''}" data-icon="${v}">${inner}</button>`;
+  return btn('', `<span style="font-size:12px">${allLabel}</span>`)
+    + ids.map(id => btn(id, iconImg(id, 26))).join('');
+}
+function bindIconBar(el, onPick) {
+  el.querySelectorAll('.iconbtn').forEach(b => {
+    b.onclick = () => {
+      el.querySelectorAll('.iconbtn').forEach(x => x.classList.remove('on'));
+      b.classList.add('on');
+      onPick(b.dataset.icon || '');
+    };
+  });
+}
 const playerName = id => (S.players.find(p => p.id === id) || {}).name || '?';
 
 function needLabel(n) {
   const t = n.type_key ? typeName(n.type_key) : '任意类型';
-  const m = n.module ? (' · ' + moduleName(n.module)) : '';
+  const m = n.module ? (' · ' + iconChip(n.module)) : '';
   const sd = n.side ? (' · ' + n.side) : '';
   const lv = n.min_level ? (' · Lv≥' + n.min_level) : '';
   const bn = n.min_bonus ? (' · ≥' + n.min_bonus + '%') : '';
@@ -111,7 +157,7 @@ async function mutate(fn, msg) {
 async function load() {
   const d = await readData();
   if (!d) { toast('数据加载失败，请刷新'); return; }
-  S = Object.assign({ players: [], artifacts: [], needs: [], trades: [], notices: [], templates: {} }, d);
+  S = Object.assign({ players: [], artifacts: [], needs: [], trades: [], notices: [], templates: {}, icons: {} }, d);
   $('#sTotal').textContent = S.artifacts.length;
   $('#sList').textContent = S.artifacts.filter(a => a.status === 'list').length;
   $('#sPlayers').textContent = S.players.length;
@@ -122,22 +168,33 @@ async function load() {
   $('#meHint').textContent = me ? ('账号 ' + (me.login || '—') + ' · 已登录') : '登录后才能上传、挂牌和发交换意向。';
   $('#authBtn').classList.toggle('hidden', !!me);
   $('#logoutBtn').classList.toggle('hidden', !me);
+  renderIconPickers();
   if (typeof REC !== 'undefined') {
-    REC.setTemplates(S.templates || {});
+    const tpl = {};
+    Object.entries(S.icons || {}).forEach(([id, ic]) => { if (ic && ic.sig) tpl[id] = { side: '', sigs: [ic.sig] }; });
+    REC.setTemplates(tpl);
     if (!load.prewarmed) { load.prewarmed = true; REC.ensureWorker().catch(() => {}); }  // 提前下模型
   }
   fillSelects();
   renderMarket(); renderMatch(); renderInbox(); renderMine(); renderNotices();
 }
 
+let needIcon = '';
+function renderIconPickers() {
+  const f = $('#fModuleBar');
+  if (f) { f.innerHTML = iconBarHTML(filterIcon, '全部'); bindIconBar(f, v => { filterIcon = v; renderMarket(); }); }
+  const n = $('#nIconBar');
+  if (n) { n.innerHTML = iconBarHTML(needIcon, '不限'); bindIconBar(n, v => { needIcon = v; }); }
+  const cnt = $('#iconCount');
+  if (cnt) cnt.textContent = Object.keys(S.icons || {}).length + ' 种图标';
+}
+
 function fillSelects() {
   if ($('#fType').options.length < 2) {
     $('#fType').innerHTML = ['<option value="">全部类型</option>'].concat(TYPES.map(t => `<option value="${t.key}">${t.name}</option>`)).join('');
-    $('#fModule').innerHTML = ['<option value="">全部模块</option>'].concat(MODULES.map(m => `<option value="${m[0]}">${m[1]}</option>`)).join('');
   }
   if ($('#nType').options.length < 1) {
     $('#nType').innerHTML = TYPES.map(t => `<option value="${t.key}">${t.name}</option>`).join('');
-    $('#nModule').innerHTML = ['<option value="">不限</option>'].concat(MODULES.map(m => `<option value="${m[0]}">${m[1]}</option>`)).join('');
   }
 }
 
@@ -159,26 +216,27 @@ function artCard(a, opts = {}) {
   const color = TYPE_COLOR[a.type_key] || '#8aa2b2';
   const lv = a.level ? `<span class="chip hi">Lv${a.level}</span>` : '';
   const bonus = a.bonus ? `<span class="chip hi">+${a.bonus}%</span>` : '';
-  const mod = a.module ? `<span class="chip">${moduleName(a.module)}</span>`
-    : (a.side ? '<span class="chip">模块待确认</span>' : '');
-  const side = a.side ? `<span class="chip ${a.side === '暗' ? 'dark' : ''}">${a.side}</span>` : '';
-  const badgeEl = a.badge_img
+  const mod = a.module ? iconChip(a.module) : '';
+  const badgeElx = a.badge_img
     ? `<div class="badge ${a.side === '光' ? 'light' : ''}" style="overflow:hidden;padding:0"><img src="${a.badge_img}" style="width:100%;height:100%;object-fit:cover"></div>`
-    : (a.side ? `<div class="badge ${a.side === '光' ? 'light' : ''}">${(moduleName(a.module) || '?').slice(0, 1)}</div>` : '');
+    : (a.module && iconOf(a.module) ? `<div class="badge ${a.side === '光' ? 'light' : ''}" style="overflow:hidden;padding:0">${iconImg(a.module, 34)}</div>` : '');
+  const side = a.side ? `<span class="chip ${a.side === '暗' ? 'dark' : ''}">${a.side}</span>` : '';
+  const badgeEl = badgeElx;
   const ownerLine = opts.hideOwner ? '' : `<div class="owner">${playerName(a.owner)}</div>`;
   return `<div class="art">
     <div class="hex">${hexSVG(color, a.level)}${badgeEl}</div>
     <div class="info">
       <div class="t1">${typeName(a.type_key)} ${lv}${bonus}${side}</div>
-      <div class="t2">${mod || '无量子模块'}${a.status === 'reserved' ? ' · 交易中' : ''}</div>
+      <div class="t2">${mod || '无量子强化'}${a.status === 'reserved' ? ' · 交易中' : ''}</div>
       ${ownerLine}
     </div>
     <div class="row" style="flex:0 0 auto">${opts.actions || ''}</div>
   </div>`;
 }
 
+let filterIcon = '';
 function renderMarket() {
-  const t = $('#fType').value, m = $('#fModule').value, sd = $('#fSide').value;
+  const t = $('#fType').value, m = filterIcon, sd = $('#fSide').value;
   let list = S.artifacts.filter(a => a.status === 'list');
   if (t) list = list.filter(a => a.type_key === t);
   if (m) list = list.filter(a => a.module === m);
@@ -326,8 +384,6 @@ function renderResult() {
   $('#resHint').textContent = '核对一下再入库：类型按颜色估的，可能有错；等级/加成留空说明没认出来，手动填上即可。';
   const tOpts = k => ['<option value="">未知</option>'].concat(
     TYPES.map(t => `<option value="${t.key}" ${t.key === k ? 'selected' : ''}>${t.name}</option>`)).join('');
-  const mOpts = k => ['<option value="">无/未识别</option>'].concat(
-    MODULES.map(m => `<option value="${m[0]}" ${m[0] === k ? 'selected' : ''}>${m[1]}</option>`)).join('');
   $('#resGrid').innerHTML = pendingSlots.map((s, i) => `
     <div class="slot">
       ${s.plate ? `<img class="plate" src="${s.plate}">` : '<div class="empty">无图</div>'}
@@ -336,8 +392,8 @@ function renderResult() {
         <div><label class="f">等级</label><input data-i="${i}" data-k="level" type="number" value="${s.level == null ? '' : s.level}"></div>
         <div><label class="f">加成%</label><input data-i="${i}" data-k="bonus" type="number" value="${s.bonus == null ? '' : s.bonus}"></div>
       </div>
-      <label class="f">量子强化${s.module ? '（图标签名已匹配）' : (s.badge_present ? '（有图标，选一次就会记住）' : '（无图标）')}${
-        s.badge_img ? `<img src="${s.badge_img}" style="height:18px;width:18px;object-fit:cover;border-radius:4px;vertical-align:-3px;margin-left:4px">` : ''}</label><select data-i="${i}" data-k="module">${mOpts(s.module)}</select>
+      <label class="f">量子强化 ${s.badge_present ? (s.module ? '· 已认出同款' : '· 新图标，入库自动建档') : '· 无'}</label>
+      <div class="iconcell">${s.badge_present && s.badge_img ? `<img src="${s.badge_img}">` : '<span class="muted" style="font-size:12px">无</span>'}</div>
       <div class="grid2" style="margin-top:4px">
         <div><label class="f">光/暗</label><select data-i="${i}" data-k="side">
           <option value="" ${!s.side ? 'selected' : ''}>—</option>
@@ -365,17 +421,10 @@ $('#commitBtn').onclick = async () => {
       owner: ME.id, type_key: s.type_key || '', level: s.level, bonus: s.bonus,
       module: s.module || '', side: s.side || '', status: s.status || 'have',
       note: '', img: '', badge_img: s.badge_img || '', sig: s.sig || '',
-      module_src: s.module ? 'manual' : '',
       t: Math.floor(Date.now() / 1000)
     }));
     await mutate(d => {
-      d.templates = d.templates || {};
-      for (const it of items) {
-        if (!it.module || !it.sig) continue;
-        const t = d.templates[it.module] = d.templates[it.module] || { side: it.side, sigs: [] };
-        if (it.side) t.side = it.side;
-        if (!t.sigs.includes(it.sig)) t.sigs.push(it.sig);
-      }
+      for (const it of items) it.module = it.sig ? ensureIcon(d, it.sig, it.badge_img) : '';
       d.artifacts = (d.artifacts || []).concat(items);
       d.notices = (d.notices || []).concat([{
         t: Math.floor(Date.now() / 1000), player: ME.name, img: '',
@@ -432,11 +481,13 @@ async function delNeed(id) {
 }
 
 function openEdit(id) {
-  editing = S.artifacts.find(a => a.id === id);
+  editing = Object.assign({}, S.artifacts.find(a => a.id === id));
   if (!editing) return;
   $('#eType').innerHTML = TYPES.map(t => `<option value="${t.key}" ${t.key === editing.type_key ? 'selected' : ''}>${t.name}</option>`).join('');
-  $('#eModule').innerHTML = ['<option value="">无/未识别</option>'].concat(
-    MODULES.map(m => `<option value="${m[0]}" ${m[0] === editing.module ? 'selected' : ''}>${m[1]}</option>`)).join('');
+  $('#eIcon').innerHTML = editing.module
+    ? `${iconImg(editing.module, 40)} <button class="btn ghost mini" id="eIconClear">清除图标</button>`
+    : `<span class="muted" style="font-size:12px">无量子强化</span>`;
+  if ($('#eIconClear')) $('#eIconClear').onclick = () => { editing._clearIcon = true; $('#eIcon').innerHTML = '<span class="muted" style="font-size:12px">提交后清除</span>'; };
   $('#eSide').value = editing.side || '';
   $('#eLevel').value = editing.level || '';
   $('#eBonus').value = editing.bonus || '';
@@ -447,7 +498,7 @@ function openEdit(id) {
 async function saveEdit() {
   const a = editing;
   const patch = {
-    type_key: $('#eType').value, module: $('#eModule').value, side: $('#eSide').value,
+    type_key: $('#eType').value, module: editing._clearIcon ? '' : (editing.module || ''), side: $('#eSide').value,
     level: $('#eLevel').value ? +$('#eLevel').value : null,
     bonus: $('#eBonus').value ? +$('#eBonus').value : null
   };
@@ -456,13 +507,9 @@ async function saveEdit() {
       const x = d.artifacts.find(y => y.id === a.id);
       if (!x) return false;
       Object.assign(x, patch);
-      // 自学习：模块 + 角标签名 → 模板，下次识别就能认出来
-      if (patch.module && x.side && x.sig) {
-        d.templates = d.templates || {};
-        const t = d.templates[patch.module] = d.templates[patch.module] || { side: x.side, sigs: [] };
-        t.side = x.side;
-        if (!t.sigs.includes(x.sig)) t.sigs.push(x.sig);
-        x.module_src = 'manual';
+      if (!patch.module && x.sig && d.icons) {
+        // 清除图标时把它从图标库减一个计数（不删库，避免误伤别人同款）
+        for (const ic of Object.values(d.icons)) { if (ic.sig === x.sig && ic.n > 0) ic.n--; }
       }
     }, '修正神器 ' + a.id);
     $('#dlgEdit').close();
@@ -475,7 +522,7 @@ async function saveEdit() {
 async function postNeed() {
   if (!ME) { toast('请先登录'); openAuth(); return; }
   const body = {
-    type_key: $('#nType').value, module: $('#nModule').value, side: $('#nSide').value,
+    type_key: $('#nType').value, module: needIcon, side: $('#nSide').value,
     min_level: +$('#nLv').value || 0, min_bonus: +$('#nBonus').value || 0, note: $('#nNote').value
   };
   try {
@@ -498,10 +545,10 @@ function openTrade(aid) {
   if (!dlgArtifact) return;
   if (dlgArtifact.owner === ME.id) { toast('这是你自己的神器'); return; }
   $('#dlgTarget').innerHTML = `${typeName(dlgArtifact.type_key)} ${dlgArtifact.level ? 'Lv' + dlgArtifact.level : ''} ${dlgArtifact.bonus ? '+' + dlgArtifact.bonus + '%' : ''}
-    ${dlgArtifact.module ? moduleName(dlgArtifact.module) : ''} ${dlgArtifact.side || ''} · 持有者 ${playerName(dlgArtifact.owner)}`;
+    ${dlgArtifact.module ? iconChip(dlgArtifact.module) : ''} ${dlgArtifact.side || ''} · 持有者 ${playerName(dlgArtifact.owner)}`;
   const mine = S.artifacts.filter(a => a.owner === ME.id && a.status !== 'reserved');
   $('#dlgGive').innerHTML = '<option value="">不指定</option>'
-    + mine.map(a => `<option value="${a.id}">${typeName(a.type_key)} ${a.level ? 'Lv' + a.level : ''} ${a.bonus ? '+' + a.bonus + '%' : ''} ${a.module ? moduleName(a.module) : ''} ${a.side || ''}</option>`).join('');
+    + mine.map(a => `<option value="${a.id}">${typeName(a.type_key)} ${a.level ? 'Lv' + a.level : ''} ${a.bonus ? '+' + a.bonus + '%' : ''} ${a.module ? '[有量子强化] ' : ''}${a.side || ''}</option>`).join('');
   $('#dlgMsg').value = '';
   $('#dlgSend').onclick = async () => {
     const give = $('#dlgGive').value || null;

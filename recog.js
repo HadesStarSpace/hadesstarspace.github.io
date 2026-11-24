@@ -529,5 +529,5 @@ const REC = (() => {
     });
   }
 
-  return { recognize, ensureWorker, setTemplates, matchModule, _test: { findPlates, classify, readBonus, readLevel, readBadge, sigDistance, toHSV } };
+  return { recognize, ensureWorker, setTemplates, matchModule, _unb64: unb64, _test: { findPlates, classify, readBonus, readLevel, readBadge, sigDistance, toHSV } };
 })();

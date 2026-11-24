@@ -62,3 +62,14 @@ dialog::backdrop{background:#000a}
 .queue{display:flex;align-items:center;gap:8px}
 .spin{width:14px;height:14px;border:2px solid #2a6c64;border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
+
+/* 量子强化：图标选择条 */
+.iconbar { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.iconbar .iconbtn {
+  background:#16222a; border:1px solid #24343f; border-radius:8px;
+  padding:3px 6px; line-height:0; cursor:pointer; color:#9fb3c0;
+}
+.iconbar .iconbtn.on { border-color:#4fe3c1; box-shadow:0 0 0 1px #4fe3c133 inset; }
+.iconbar .iconbtn img { display:block; border-radius:5px; }
+.iconcell { background:#0c1419; border:1px solid #24343f; border-radius:8px; padding:5px; text-align:center; min-height:44px; }
+.iconcell img { height:34px; width:34px; border-radius:6px; object-fit:cover; }
