@@ -52,7 +52,7 @@ function findIconBySig(d, sig, lum, type) {
     let dist;
     try { dist = REC._test.sigAlign(REC._unb64(ic.sig), REC._unb64(sig)); } catch (e) { continue; }
     // 亮度再卡一道：同图标两次截图亮度一致，不同图标（灰 vs 深色）亮度差得开
-    if (ic.lum != null && lum != null && Math.abs(ic.lum - lum) > 8) continue;
+    if (ic.lum != null && lum != null && Math.abs(ic.lum - lum) > 12) continue;
     if (!best || dist < best.dist) best = { id, dist };
   }
   return best && best.dist < ICON_SOFT ? best.id : null;
