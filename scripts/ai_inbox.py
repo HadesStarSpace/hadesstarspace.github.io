@@ -370,6 +370,18 @@ def grid_windows(img, it):
     return dict(icon=icon, card=card, side=side)
 
 
+def square_center(bgr, keep=0.92):
+    """图标缩略图裁成正方形（卡片小方框能刚好铺满，不被裁掉主体）；签名仍用原窗口算"""
+    if bgr is None or bgr.size == 0:
+        return bgr
+    h, w = bgr.shape[:2]
+    side = max(8, int(min(h, w) * keep))
+    cy, cx = h // 2, w // 2
+    y0 = max(0, cy - side // 2); y1 = y0 + side
+    x0 = max(0, cx - side // 2); x1 = x0 + side
+    return bgr[y0:y1, x0:x1]
+
+
 def lum_of(bgr):
     if bgr is None or bgr.size == 0:
         return None
@@ -415,7 +427,7 @@ def main():
                 "side": loc.get("side") if loc else "暗",
                 "sig": sig, "lum": lum_of(icon),
                 "plate": save_img(loc["card"], "p") if loc and loc.get("card") is not None else "",
-                "badge_img": save_img(icon, "b") if icon is not None else "",
+                "badge_img": save_img(square_center(icon), "b") if icon is not None else "",
             })
         os.remove(path)
         print("认出", len(items), "件")
