@@ -42,7 +42,10 @@
   /* ---------- 检测：缩放到短边 736、补到 32 的倍数、归一化 ---------- */
   function detInput(bmp) {
     const w = bmp.width, h = bmp.height;
-    const ratio = Math.min(w, h) < LIMIT ? LIMIT / Math.min(w, h) : 1;
+    let ratio = Math.min(w, h) < LIMIT ? LIMIT / Math.min(w, h) : 1;
+    // 大图别整张怼进去：检测层限到长边 MAX_SIDE，识别仍从原图裁，字不会糊
+    const MAX_SIDE = 1280;
+    if (Math.max(w, h) * ratio > MAX_SIDE) ratio = MAX_SIDE / Math.max(w, h);
     let nh = Math.max(32, Math.round(h * ratio)), nw = Math.max(32, Math.round(w * ratio));
     const ph = (32 - (nh % 32)) % 32, pw = (32 - (nw % 32)) % 32;
     nh += ph; nw += pw;
