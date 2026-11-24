@@ -618,7 +618,8 @@ async function cloudRecognize(files) {
     .map(it => ({
       type_key: it.type_key || null, level: it.level == null ? null : it.level, bonus: it.bonus == null ? null : it.bonus, qty: 1,
       sig: it.sig || '', lum: it.lum == null ? null : it.lum, bp: it.bp || '',
-      plate: it.plate ? IMG_BASE + it.plate : ''
+      plate: it.plate ? IMG_BASE + it.plate : '',
+      bpSaw: !!it.bp_saw, bpDark: !!it.bp_dark_spot
     }));
   if (!items.length) throw new Error('云端没认出条目');
   return { items, secs };
@@ -676,7 +677,10 @@ function renderResult() {
       <select id="batchType" style="max-width:140px"><option value="">选类型…</option>${TYPES.map(t => `<option value="${t.key}">${t.name}</option>`).join('')}</select>
       <button class="btn ghost mini" id="batchApply">一次填好</button>
     </div>` : '';
-  $('#resHint').textContent = noType.length ? '等级/加成已认出；类型请在上面一次选好，再入库。' : '核对无误就点「确认入库」。';
+  const bpUnsure = pendingSlots.filter(s => !s.bp && s.bpSaw).length;
+  const bpTooDark = pendingSlots.filter(s => !s.bp && s.bpDark).length;
+  $('#resHint').textContent = (noType.length ? '等级/加成已认出；类型请在上面一次选好，再入库。' : '核对无误就点「确认入库」。')
+    + (bpUnsure ? ` 其中 ${bpUnsure} 件有量子图纸但没认准${bpTooDark ? '（星球列表上的图纸会偏暗，图案很淡）' : ''}，请点图标手选，别留空。` : '');
   const tOpts = k => ['<option value="">未知</option>'].concat(
     TYPES.map(t => `<option value="${t.key}" ${t.key === k ? 'selected' : ''}>${t.name}</option>`)).join('');
   const bpBox = (v, typeKey, i) => `<div class="bpickwrap" data-i="${i}">${bpChipHtml(v, typeKey)}</div>`;
@@ -684,7 +688,7 @@ function renderResult() {
     <div class="slot">
       ${(s.plate || catIcon(s.level, s.type_key)) ? `<img class="plate" title="点击查看大图" src="${s.plate || catIcon(s.level, s.type_key)}" onclick="window.open(this.src,'_blank')">` : '<div class="empty">无图</div>'}
       <label class="f">类型</label><select data-i="${i}" data-k="type_key">${tOpts(s.type_key)}</select>
-      <label class="f">量子图纸</label>${bpBox(s.bp, s.type_key, i)}
+      <label class="f">量子图纸</label>${bpBox(s.bp, s.type_key, i)}${(!s.bp && s.bpSaw) ? `<div class="bpnb">${s.bpDark ? '方块偏暗，没认准' : '有图纸但没认准'}，请在上面点选</div>` : ''}
       <div class="grid2" style="margin-top:4px">
         <div><label class="f">等级</label><input data-i="${i}" data-k="level" type="number" value="${s.level == null ? '' : s.level}"></div>
         <div><label class="f">加成%</label><input data-i="${i}" data-k="bonus" type="number" value="${s.bonus == null ? '' : s.bonus}"></div>

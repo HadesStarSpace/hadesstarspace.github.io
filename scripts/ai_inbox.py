@@ -666,6 +666,73 @@ def bp_match(img, pill, layout=""):
     return best_key if best >= BP_MATCH else ""
 
 
+# ---------- 星球货物列表上的「暗一点」图纸：固定几何带 + 滑动窗口 + 对比度拉伸 ----------
+BP_STRETCH = 0.62   # 滑动窗口版门槛
+BP_MARGIN = 0.15    # 第一名要比第二名高出这么多才认，否则留空让人手选
+BP_STRETCH_LO = 0.58  # 分数略低但和第二名差距很大时也认（暗图纸对比度天然偏低）
+BP_MARGIN_LO = 0.22
+BP_SAW = 0.45       # 看到「像个图纸方块」的最低分：只用来提示“有图纸但没认准”
+
+
+def _stretch64(bgr):
+    """拉伸 5%~95% 分位再归一化：对付暗背景上几乎看不见的淡图案"""
+    g = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    lo, hi = np.percentile(g, 5), np.percentile(g, 95)
+    g = np.clip((g - lo) * 255.0 / max(8.0, float(hi - lo)), 0, 255)
+    g = cv2.resize(g, (64, 64), interpolation=cv2.INTER_AREA)
+    g = cv2.GaussianBlur(g, (3, 3), 0.8)
+    return (g - g.mean()) / (g.std() + 1e-6)
+
+
+def bp_slide(img, pill):
+    """在药丸右上方的带子里滑动找方块（图纸小方块挂在这里），返回 [(分数, key)] 合表"""
+    if not pill or not _BP:
+        return {}
+    w = pill["x1"] - pill["x0"]; h = pill["h"]; cy = pill["cy"]
+    x0 = max(0, int(pill["x0"] - 0.2 * w)); x1 = min(img.shape[1], int(pill["x1"] + 1.0 * w))
+    y0 = max(0, int(cy - 3.2 * h)); y1 = min(img.shape[0], int(cy - 0.15 * h))
+    if x1 - x0 < 30 or y1 - y0 < 30:
+        return {}
+    reg = img[y0:y1, x0:x1]
+    agg = {}
+    for s in (int(0.45 * w), int(0.55 * w), int(0.65 * w)):
+        if s < 16 or s > min(reg.shape[0], reg.shape[1]):
+            continue
+        st = max(5, s // 5)
+        for y in range(0, reg.shape[0] - s + 1, st):
+            for x in range(0, reg.shape[1] - s + 1, st):
+                q = _stretch64(reg[y:y + s, x:x + s])
+                for key, ref in _BP:
+                    sc = float((q * ref).mean())
+                    if sc > agg.get(key, 0.0):
+                        agg[key] = sc
+    return agg
+
+
+def bp_scan(img, pill, layout=""):
+    """两道工序合起来：轮廓法（老逻辑，容器/亮底好用）+ 滑动法（星球列表上的暗图纸）。
+    返回 (key, saw)：key 为空但有 saw=True 表示“看到一张图纸但没认准”，前端提示手选。"""
+    if not pill or not _BP:
+        return "", False
+    scores = {}
+    old = bp_match(img, pill, layout) or ""
+    if old:
+        scores[old] = 0.80
+    agg = bp_slide(img, pill)
+    for k, v in agg.items():
+        scores[k] = max(scores.get(k, 0.0), v)
+    top = sorted(scores.items(), key=lambda kv: -kv[1])[:2]
+    best = top[0] if top else ("", 0.0)
+    second = top[1][1] if len(top) > 1 else 0.0
+    saw = best[1] >= BP_SAW
+    if old:
+        return old, True
+    gap = best[1] - second
+    if best[0] and ((best[1] >= BP_STRETCH and gap >= BP_MARGIN) or (best[1] >= BP_STRETCH_LO and gap >= BP_MARGIN_LO)):
+        return best[0], True
+    return "", saw
+
+
 def lum_of(bgr):
     if bgr is None or bgr.size == 0:
         return None
@@ -734,6 +801,22 @@ def type_of(card):
     return best
 
 
+
+def bp_pending_tone(img, pill):
+    """图纸方块整体偏暗（星球列表那种“暗一点”的图纸）时返回 True，仅用于前端提示文案。"""
+    if not pill:
+        return False
+    w = pill["x1"] - pill["x0"]; h = pill["h"]; cy = pill["cy"]
+    cx = int(pill["x0"] + 0.8 * w); cyc = int(cy - 1.55 * h)
+    half = int(0.28 * w)
+    x0 = max(0, cx - half); x1 = min(img.shape[1], cx + half)
+    y0 = max(0, cyc - half); y1 = min(img.shape[0], cyc + half)
+    if x1 - x0 < 10 or y1 - y0 < 10:
+        return False
+    g = cv2.cvtColor(img[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY)
+    return float(np.median(g)) < 110
+
+
 def main():
     files = sorted(f for f in os.listdir(INBOX) if not f.startswith("."))
     if not files:
@@ -777,6 +860,8 @@ def main():
         cellw = sorted(gaps)[len(gaps) // 2] if gaps else None
         for it in items:
             loc = grid_windows(img, it, cellw) if it.get("layout") == "grid" else windows(img, it)
+            bp_key, bp_saw = bp_scan(img, it.get("pill"), "grid" if it.get("layout") == "grid" else "list")
+            bp_dark = bp_pending_tone(img, it.get("pill"))
             icon = loc.get("icon") if loc else None
             icon = square_center(icon) if icon is not None else None
             sig = grad_sig(icon) if icon is not None else ""
@@ -787,7 +872,7 @@ def main():
                 "sig": sig, "lum": lum_of(icon),
                 "plate": save_img(loc["card"], "p") if loc and loc.get("card") is not None else "",
                 "badge_img": save_img(icon, "b") if icon is not None else "",
-                "bp": bp_match(img, it.get("pill"), "grid" if it.get("layout") == "grid" else "list"),
+                "bp": bp_key, "bp_saw": bp_saw, "bp_dark_spot": bp_dark,
             })
         os.remove(path)
         print("认出", len(items), "件")
