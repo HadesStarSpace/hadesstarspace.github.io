@@ -287,7 +287,9 @@ const REC = (() => {
     const alt = W > 170
       ? [cx - 0.20 * W, cy + 0.50 * W, cx + 0.95 * W, cy + 1.15 * W]
       : [cx - 0.20 * W, cy + 0.60 * W, cx + 0.95 * W, cy + 1.25 * W];
-    for (const box of [main, alt]) {
+    // 兜底：药丸贴在格子右下的通版位置
+    const lowerRight = [cx - 0.25 * W, cy + 0.05 * W, cx + 1.55 * W, cy + 1.25 * W];
+    for (const box of [main, alt, lowerRight]) {
       const b = brightestBox(img, box, 900);
       const cc = (b && b[2] / b[3] > 1.4 && b[2] / b[3] < 3.4)
         ? crop(img, b[0] - 3, b[1] - 3, b[0] + b[2] + 3, b[1] + b[3] + 3)
@@ -318,9 +320,8 @@ const REC = (() => {
       }
       return null;
     };
-    if (W > 170) {
-      return await pick([cx - 3.6 * W, cy - 0.55 * W, cx - 0.75 * W, cy + 0.35 * W], [7, 6]);
-    }
+
+    if (W > 170) return null;
     const v = await pick([cx - 0.80 * W, cy + 0.86 * W, cx - 0.38 * W, cy + 1.32 * W], [10, 7]);
     if (v != null) return v;
     return await pick([cx - 2.4 * W, cy - 1.05 * W, cx - 0.55 * W, cy - 0.15 * W], [7]);
