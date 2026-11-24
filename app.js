@@ -202,9 +202,40 @@ async function load() {
 }
 
 let needIcon = '';
-function renderIconPickers() {
+
+/* 量子技能筛选：下拉菜单，菜单项就是图标（按图标认，不用名字） */
+function iconDDHTML(sel, labelAll) {
+  const icons = Object.entries(S.icons || {});
+  const cur = (sel && S.icons && S.icons[sel]) ? S.icons[sel] : null;
+  const head = cur
+    ? `${cur.thumb ? `<img src="${cur.thumb}">` : iconImg(sel, 22)}<span>已选：量子技能 ${cur.n ? '×' + cur.n : ''}</span>`
+    : `<span>${labelAll}</span>`;
+  const items = [`<button type="button" class="icondd-item ${sel ? '' : 'on'}" data-v=""><span>${labelAll}</span></button>`]
+    .concat(icons.map(([id, ic]) => {
+      const pic = ic && ic.thumb ? `<img src="${ic.thumb}">` : iconImg(id, 26);
+      return `<button type="button" class="icondd-item ${sel === id ? 'on' : ''}" data-v="${id}">${pic}${ic && ic.n ? `<span>×${ic.n}</span>` : ''}</button>`;
+    })).join('');
+  return `<div class="icondd"><button type="button" class="icondd-btn">${head}<span class="caret">▾</span></button>
+    <div class="icondd-panel">${items}</div></div>`;
+}
+
+function bindIconDD(el, cb) {
+  if (!el) return;
+  const panel = el.querySelector('.icondd-panel');
+  el.querySelector('.icondd-btn').onclick = e => { e.stopPropagation(); panel.classList.toggle('open'); };
+  el.querySelectorAll('.icondd-item').forEach(it => {
+    it.onclick = e => { e.stopPropagation(); panel.classList.remove('open'); cb(it.dataset.v || ''); };
+  });
+}
+document.addEventListener('click', () => document.querySelectorAll('.icondd-panel.open').forEach(p => p.classList.remove('open')));
+
+function renderFilterIcons() {
   const f = $('#fModuleBar');
-  if (f) { f.innerHTML = iconBarHTML(filterIcon, '全部'); bindIconBar(f, v => { filterIcon = v; renderMarket(); }); }
+  if (f) { f.innerHTML = iconDDHTML(filterIcon, '全部量子技能'); bindIconDD(f, v => { filterIcon = v; renderFilterIcons(); renderMarket(); }); }
+}
+
+function renderIconPickers() {
+  renderFilterIcons();
   const n = $('#nIconBar');
   if (n) { n.innerHTML = iconBarHTML(needIcon, '不限'); bindIconBar(n, v => { needIcon = v; }); }
   const cnt = $('#iconCount');
@@ -344,8 +375,8 @@ function renderMine() {
   $('#mineList').innerHTML = arts.length ? arts.map(a => artCard(a, {
     hideOwner: true, actions: `
       <select onchange="setStatus('${a.id}',this.value)" style="width:auto;padding:5px 8px;font-size:12px">
-        <option value="have" ${a.status === 'have' ? 'selected' : ''}>自用</option>
-        <option value="list" ${a.status === 'list' ? 'selected' : ''}>可交换</option>
+        <option value="list" ${a.status !== 'have' ? 'selected' : ''}>可交换</option>
+        <option value="have" ${a.status === 'have' ? 'selected' : ''}>下架</option>
         <option value="reserved" ${a.status === 'reserved' ? 'selected' : ''} disabled>交易中</option>
       </select>
       <button class="btn ghost mini" onclick="openEdit('${a.id}')">改</button>
@@ -444,7 +475,7 @@ async function commitItems(items) {
   const rows = items.map((s, i) => ({
     id: 'a' + base + i + Math.floor(Math.random() * 1e4).toString(36),
     owner: ME.id, type_key: s.type_key || '', level: s.level, bonus: s.bonus,
-    module: '', side: s.side || '', status: s.status || 'have',
+    module: '', side: s.side || '', status: s.status || 'list',
     note: '', img: s.plate || '', badge_img: s.badge_img || '', sig: s.sig || '',
     lum: s.lum == null ? null : s.lum, qty: 1,
     t: Math.floor(Date.now() / 1000)
@@ -472,10 +503,13 @@ const IMG_BASE = 'https://lindatou1314.github.io/qs-exchange/';
 
 async function pollResult(batch, t0) {
   let tries = 0;
-  while (tries++ < 90) {                       // 最多约 3 分钟
-    await new Promise(r => setTimeout(r, 2500));
+  while (tries++ < 150) {                      // 每秒一滴答，最多约 2.5 分钟
+    await new Promise(r => setTimeout(r, 1000));
     const secs = Math.round((performance.now() - t0) / 1000);
-    $('#upHint').textContent = `云端 AI 识别中… ${secs}s（一般 25~45 秒）`;
+    const left = Math.max(0, 40 - secs);
+    $('#upHint').textContent = left
+      ? `云端 AI 识别中… 倒计时 ${left}s（已用 ${secs}s）`
+      : `云端 AI 识别中… 已用 ${secs}s，快好了`;
     try {
       const f = await getFile('inbox_out/' + batch + '.json');
       if (f && f.text) return JSON.parse(f.text);
@@ -494,6 +528,7 @@ async function cloudRecognize(files) {
     $('#upHint').textContent = `正在上传 ${i + 1}/${files.length} 张…`;
     up.push({ path: `inbox/${batch}_${i}.jpg`, b64: await fileToJpegB64(files[i]) });
   }
+  $('#upHint').textContent = '上传完成，开始识别… 倒计时 40s';
   await putFilesBatch(up, `AI 识别上传 ${ME.name}（${files.length} 张）`);
   $('#file').value = '';
   const res = await pollResult(batch, t0);
@@ -519,7 +554,7 @@ $('#file').onchange = async e => {
   $('#upHint').textContent = '准备上传…';
   try {
     const r = await cloudRecognize(files);
-    pendingSlots = r.items.map(s => Object.assign({ status: 'have' }, s));
+    pendingSlots = r.items.map(s => Object.assign({ status: 'list' }, s));
     const grid = r.items.some(s => !s.type_key);
     $('#resHint').textContent = `云端 AI 认出 ${r.items.length} 件（${r.secs}s）。` +
       (grid ? '容器截图没有类型文字，在上面选一次类型；' : '') + '核对无误就点「确认入库」。';
@@ -532,7 +567,7 @@ $('#file').onchange = async e => {
       const items = await aiLocalRecognize(files);
       $('#file').value = '';
       if (!items.length) throw new Error('没认到神器，换张图试试');
-      pendingSlots = items.map(s => Object.assign({ status: 'have', side: s.side || '暗' }, s));
+      pendingSlots = items.map(s => Object.assign({ status: 'list', side: s.side || '暗' }, s));
       $('#resHint').textContent = `本地认出 ${items.length} 件。核对无误就点「确认入库」。`;
       renderResult();
       $('#upHint').textContent = '';
@@ -576,8 +611,8 @@ function renderResult() {
           <option value="" ${!s.side ? 'selected' : ''}>—</option>
           <option ${s.side === '光' ? 'selected' : ''}>光</option><option ${s.side === '暗' ? 'selected' : ''}>暗</option></select></div>
         <div><label class="f">状态</label><select data-i="${i}" data-k="status">
-          <option value="have" ${s.status === 'have' ? 'selected' : ''}>自用</option>
-          <option value="list" ${s.status === 'list' ? 'selected' : ''}>可交换</option></select></div>
+          <option value="list" ${s.status !== 'have' ? 'selected' : ''}>可交换（默认）</option>
+          <option value="have" ${s.status === 'have' ? 'selected' : ''}>下架</option></select></div>
       </div>
     </div>`).join('');
   const ba = $('#batchApply');
@@ -603,7 +638,7 @@ $('#commitBtn').onclick = async () => {
     const items = pendingSlots.map((s, i) => ({
       id: 'a' + Date.now().toString(36) + i,
       owner: ME.id, type_key: s.type_key || '', level: s.level, bonus: s.bonus,
-      module: s.module || '', side: s.side || '', status: s.status || 'have',
+      module: s.module || '', side: s.side || '', status: s.status || 'list',
       note: '', img: '', badge_img: s.badge_img || '', sig: s.sig || '', qty: 1,
       t: Math.floor(Date.now() / 1000)
     }));
@@ -637,7 +672,7 @@ async function addManual() {
   if (!ME) { toast('请先登录'); openAuth(); return; }
   const rec = {
     id: 'a' + Date.now().toString(36), owner: ME.id, type_key: 'trade', level: null, bonus: null,
-    module: '', side: '', status: 'have', note: '', img: '', badge_img: '', sig: '',
+    module: '', side: '', status: 'list', note: '', img: '', badge_img: '', sig: '',
     t: Math.floor(Date.now() / 1000)
   };
   try {
