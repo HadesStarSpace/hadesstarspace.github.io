@@ -47,7 +47,8 @@ const REC = (() => {
   }
 
   /* ---------- 版面定位（半分辨率） ---------- */
-  function findPlates(imageData) {
+  function findPlates(imageData, opt) {
+    const minS = (opt && opt.minS) || 45, maxS = (opt && opt.maxS) || 110, maxN = (opt && opt.maxN) || 40;
     const { width: W, height: H, data } = imageData;
     const sw = Math.max(1, Math.round(W / 2)), sh = Math.max(1, Math.round(H / 2));
     const small = document.createElement('canvas');
@@ -89,7 +90,7 @@ const REC = (() => {
         }
       }
       const w = maxX - minX + 1, h = maxY - minY + 1;
-      if (w < 45 || w > 110 || h < 45 || h > 110) continue;
+      if (w < minS || w > maxS || h < minS || h > maxS) continue;
       if (area < 1250 || area < 0.3 * w * h) continue;
       boxes.push({ cx: (minX + maxX + 1) / 2 * 2, cy: (minY + maxY + 1) / 2 * 2, w: w * 2, h: h * 2, area });
     }
@@ -270,63 +271,57 @@ const REC = (() => {
   /* ---------- 识别单个槽位 ---------- */
   async function readBonus(img, p) {
     const W = p.w, cx = p.cx, cy = p.cy;
-    const regions = W > 170
-      ? [ // 货物/列表面板：药丸贴在格子右下，格子与药丸常连成一块，W 偏大
-        [cx - 0.10 * W, cy - 0.10 * W, cx + 1.05 * W, cy + 0.50 * W],
-        [cx - 0.20 * W, cy + 0.05 * W, cx + 1.10 * W, cy + 0.60 * W]
-      ]
-      : [ // 文物容器面板：药丸在格子上方
-        [cx - 0.75 * W, cy - 2.05 * W, cx + 0.9 * W, cy - 1.02 * W],
-        [cx + 0.10 * W, cy + 0.30 * W, cx + 1.30 * W, cy + 1.10 * W]
-      ];
-    const cands = [];
+    const regions = [
+      [cx - 0.75 * W, cy - 2.05 * W, cx + 0.90 * W, cy - 1.02 * W],   // 容器：药丸在格子上方
+      [cx - 0.10 * W, cy - 0.12 * W, cx + 1.05 * W, cy + 0.52 * W],   // 货物/列表：药丸在右下
+      [cx - 0.20 * W, cy + 0.55 * W, cx + 0.95 * W, cy + 1.20 * W],   // 药丸在正下方
+      [cx - 1.90 * W, cy - 0.30 * W, cx - 0.25 * W, cy + 0.55 * W]    // 药丸在左侧
+    ];
+    let fallback = null;
     for (const box of regions) {
       const b = brightestBox(img, box, 900);
-      let cc = null;
-      if (b && b[2] / b[3] > 1.4 && b[2] / b[3] < 3.4) {
-        cc = crop(img, b[0] - 3, b[1] - 3, b[0] + b[2] + 3, b[1] + b[3] + 3);
-      } else {
-        cc = crop(img, box[0], box[1], box[2], box[3]);
-      }
+      const cc = (b && b[2] / b[3] > 1.4 && b[2] / b[3] < 3.4)
+        ? crop(img, b[0] - 3, b[1] - 3, b[0] + b[2] + 3, b[1] + b[3] + 3)
+        : crop(img, box[0], box[1], box[2], box[3]);
       if (!cc) continue;
-      // 内缩，去掉边框
       const inner = crop(cc.canvas, cc.w * 0.10, cc.h * 0.08, cc.w * 0.92, cc.h * 0.92);
       if (!inner) continue;
-      for (const [psm, mode] of [[7, 'otsu'], [8, 'fixed'], [8, 'otsu']]) {
+      for (const [psm, mode] of [[7, 'otsu'], [8, 'fixed']]) {
         const t = await ocr(inner.canvas, psm, '0123456789+%', mode);
         const digits = t.replace(/\D/g, '');
-        if (digits.length >= 3) {
-          const v = parseInt(digits.slice(0, 3), 10);
-          if (v >= 100 && v <= 999) cands.push(v);
-        }
+        if (digits.length < 3) continue;
+        const v = parseInt(digits.slice(0, 3), 10);
+        if (v < 100 || v > 999) continue;
+        if (v >= 300 && v <= 400) return v;          // 神器加成基本都是 3xx%，优先采信
+        if (fallback == null) fallback = v;
       }
     }
-    const good = cands.filter(v => v >= 300 && v <= 400);
-    return good.length ? good[0] : (cands.length ? cands[0] : null);
+    return fallback;
   }
 
   async function readLevel(img, p) {
     const W = p.w, cx = p.cx, cy = p.cy;
-    const box = [cx - 0.78 * W, cy + 0.86 * W, cx - 0.40 * W, cy + 1.30 * W];
-    const cc = crop(img, box[0], box[1], box[2], box[3]);
-    if (!cc) return null;
-    for (const [psm, mode] of [[10, 'otsu'], [7, 'otsu'], [8, 'otsu']]) {
-      const t = await ocr(cc.canvas, psm, '0123456789', mode);
-      const digits = t.replace(/\D/g, '');
-      if (digits.length >= 1) {
-        const v = parseInt(digits.slice(0, 2), 10);
-        if (v >= 8 && v <= 20) return v;
+    const bands = [
+      [cx - 3.6 * W, cy - 0.55 * W, cx - 0.75 * W, cy + 0.35 * W],   // 列表：等级在格子左侧同一行
+      [cx - 0.80 * W, cy + 0.86 * W, cx - 0.38 * W, cy + 1.32 * W],  // 容器：等级在格子左下
+      [cx - 2.4 * W, cy - 1.05 * W, cx - 0.55 * W, cy - 0.15 * W],   // 放大单件：等级在格子上方偏左
+      [cx - 2.4 * W, cy - 0.20 * W, cx - 0.55 * W, cy + 0.70 * W]
+    ];
+    const votes = {};
+    for (const b of bands) {
+      const cc = crop(img, b[0], b[1], b[2], b[3]);
+      if (!cc) continue;
+      for (const psm of [7, 6]) {
+        const t = await ocr(cc.canvas, psm, '0123456789', 'otsu');
+        const nums = (t.match(/\d{1,2}/g) || []).map(x => parseInt(x, 10)).filter(n => n >= 8 && n <= 15);
+        if (!nums.length) continue;
+        for (const n of nums) votes[n] = (votes[n] || 0) + 1;
+        const top = Object.entries(votes).sort((a, b2) => b2[1] - a[1])[0];
+        if (top[1] >= 2) return +top[0];          // 两票一致就算认出来
       }
     }
-    // 其它版面（货物/列表）：格子同一行左侧的文字，取 8~20 的数字
-    const cc2 = crop(img, cx - 3.6 * W, cy - 0.55 * W, cx - 0.75 * W, cy + 0.35 * W);
-    if (cc2) {
-      const t = await ocr(cc2.canvas, 6, '0123456789', 'otsu');
-      const nums = (t.match(/\d{1,2}/g) || []).map(x => parseInt(x, 10));
-      const ok = nums.find(n => n >= 8 && n <= 20);
-      if (ok) return ok;
-    }
-    return null;
+    const top = Object.entries(votes).sort((a, b2) => b2[1] - a[1])[0];
+    return top ? +top[0] : null;
   }
 
   // 颜色→类型：按「圆点环带」的色相直方图判定，跳过泛光青色（hue 75~92）
@@ -381,27 +376,80 @@ const REC = (() => {
 
 
 
-  function readBadge(img, p) {
-    const W = p.w, cx = p.cx, cy = p.cy;
-    const cc = crop(img, cx + 0.28 * W, cy - 1.26 * W, cx + 0.78 * W, cy - 0.80 * W);
-    if (!cc) return { side: null, thumb: null };
-    const g = grayOf(cc.canvas);
-    let sum = 0; for (let i = 0; i < g.length; i++) sum += g[i];
-    const mean = sum / g.length;
-    const thumb = shrink(cc.canvas, 40);
-    return { side: mean > 110 ? '光' : '暗', thumb: thumb.toDataURL('image/jpeg', 0.8), mean };
-  }
-
   function shrink(canvas, size) {
-    const s = size / Math.max(canvas.width, canvas.height);
+    const s = Math.min(1, size / Math.max(canvas.width, canvas.height));
     const c = document.createElement('canvas');
     c.width = Math.max(1, Math.round(canvas.width * s));
     c.height = Math.max(1, Math.round(canvas.height * s));
-    c.getContext('2d').drawImage(canvas, 0, 0, c.width, c.height);
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = true;
+    g.drawImage(canvas, 0, 0, c.width, c.height);
     return c;
   }
 
-  /* ---------- 主流程 ---------- */
+  /* 量子强化图标：区域固定，取 16x16 灰度签名用于模板比对 */
+  function b64(bytes) {
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin);
+  }
+  function unb64(str) {
+    const bin = atob(str);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function readBadge(img, p) {
+    const W = p.w, cx = p.cx, cy = p.cy;
+    const cc = crop(img, cx + 0.28 * W, cy - 1.26 * W, cx + 0.78 * W, cy - 0.80 * W);
+    if (!cc) return { present: false, side: null, thumb: null, sig: '' };
+    const small = shrink(cc.canvas, 16);
+    const d = small.getContext('2d').getImageData(0, 0, 16, 16).data;
+    const g = new Float32Array(256);
+    let sum = 0, sum2 = 0, maxV = 0;
+    for (let i = 0, k = 0; i < 256; i++, k += 4) {
+      g[i] = 0.299 * d[k] + 0.587 * d[k + 1] + 0.114 * d[k + 2];
+      sum += g[i]; sum2 += g[i] * g[i]; if (g[i] > maxV) maxV = g[i];
+    }
+    const mean = sum / 256;
+    const sd = Math.sqrt(Math.max(0, sum2 / 256 - mean * mean));
+    const thumb = shrink(cc.canvas, 40).toDataURL('image/jpeg', 0.8);
+    // 空槽位：几乎全黑、方差极小
+    const present = sd > 9 && maxV > 55;
+    const bytes = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) {
+      const v = sd > 1 ? (g[i] - mean) / sd : 0;   // 归一化，抵消整体亮暗
+      bytes[i] = Math.max(0, Math.min(255, Math.round(128 + v * 48)));
+    }
+    return { present, side: mean > 110 ? '光' : '暗', thumb, sig: present ? b64(bytes) : '' };
+  }
+
+  /* 模板比对：模块名 → 若干 16x16 签名，取最小归一化距离 */
+  let TEMPLATES = null;
+  function setTemplates(t) { TEMPLATES = t || null; }
+  function sigDistance(a, b) {
+    if (a.length !== b.length) return 9;
+    let acc = 0;
+    for (let i = 0; i < a.length; i++) {
+      const d = (a[i] - 128) / 48 - (b[i] - 128) / 48;
+      acc += d * d;
+    }
+    return Math.sqrt(acc / a.length);            // 归一化 RMSE
+  }
+  function matchModule(sigStr) {
+    if (!TEMPLATES || !sigStr) return null;
+    const cur = unb64(sigStr);
+    let best = null;
+    for (const [key, t] of Object.entries(TEMPLATES)) {
+      for (const s of (t && t.sigs) || []) {
+        let d;
+        try { d = sigDistance(cur, unb64(s)); } catch (e) { continue; }
+        if (!best || d < best.dist) best = { module: key, dist: d, side: t.side || null };
+      }
+    }
+    return best && best.dist < 0.05 ? best : null;
+  }
+
   async function recognize(file, onProgress) {
     const img = await loadImage(file);
     const full = document.createElement('canvas');
@@ -409,14 +457,17 @@ const REC = (() => {
     full.getContext('2d').drawImage(img, 0, 0);
     const ctx = { canvas: full, width: img.width, height: img.height };
     const imgData = { canvas: full, width: img.width, height: img.height, data: full.getContext('2d').getImageData(0, 0, img.width, img.height).data };
-    const plates = findPlates(imgData);
-    if (plates.length < 1) return { ok: false, note: '没找到神器格子，请上传「文物容器」面板的完整截图' };
+    let plates = findPlates(imgData);
+    if (!plates.length) plates = findPlates(imgData, { minS: 60, maxS: 420, maxN: 4 });   // 放大/单件截图
+    if (!plates.length) return { ok: false, note: '没找到神器格子，截一张能看清神器底板的图再试' };
+    if (plates.length > 12) plates = plates.slice(0, 12);
     const slots = [];
     for (let i = 0; i < plates.length; i++) {
       const p = plates[i];
       if (onProgress) onProgress(i, plates.length);
       const cls = classify(ctx, p);
       const badge = readBadge(ctx, p);
+      const matched = badge.present ? matchModule(badge.sig) : null;
       const bonus = await readBonus(ctx, p);
       const level = await readLevel(ctx, p);
       const plate = crop(full, p.cx - 0.5 * p.w, p.cy - 0.5 * p.w, p.cx + 0.5 * p.w, p.cy + 0.5 * p.w);
@@ -425,7 +476,11 @@ const REC = (() => {
         type: cls.name, type_key: cls.key, type_score: cls.score,
         level, bonus,
         side: badge.side,
+        badge_present: badge.present,
         badge_img: badge.thumb,
+        sig: badge.sig,
+        module: matched ? matched.module : '',
+        module_conf: matched ? (1 - matched.dist) : 0,
         plate: plate ? shrink(plate.canvas, 96).toDataURL('image/jpeg', 0.75) : null
       });
     }
@@ -442,5 +497,5 @@ const REC = (() => {
     });
   }
 
-  return { recognize, ensureWorker, _test: { findPlates, classify, readBonus, readLevel, readBadge, toHSV } };
+  return { recognize, ensureWorker, setTemplates, matchModule, _test: { findPlates, classify, readBonus, readLevel, readBadge, sigDistance, toHSV } };
 })();

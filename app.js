@@ -122,6 +122,7 @@ async function load() {
   $('#meHint').textContent = me ? ('账号 ' + (me.login || '—') + ' · 已登录') : '登录后才能上传、挂牌和发交换意向。';
   $('#authBtn').classList.toggle('hidden', !!me);
   $('#logoutBtn').classList.toggle('hidden', !me);
+  if (typeof REC !== 'undefined') REC.setTemplates(S.templates || {});
   fillSelects();
   renderMarket(); renderMatch(); renderInbox(); renderMine(); renderNotices();
 }
@@ -299,8 +300,9 @@ $('#file').onchange = async e => {
     if (!res.ok) { $('#upHint').textContent = ''; toast(res.note); return; }
     pendingSlots = res.slots.map(s => ({
       type_key: s.type_key || '', level: s.level, bonus: s.bonus,
-      side: s.side || '', module: '', status: 'have',
-      plate: s.plate, badge_img: s.badge_img, slot: s.slot
+      side: s.side || '', module: s.module || '', status: 'have',
+      plate: s.plate, badge_img: s.badge_img, badge_present: !!s.badge_present,
+      sig: s.sig || '', slot: s.slot
     }));
     renderResult();
     const ms = Math.round(performance.now() - t0);
@@ -331,7 +333,7 @@ function renderResult() {
         <div><label class="f">等级</label><input data-i="${i}" data-k="level" type="number" value="${s.level == null ? '' : s.level}"></div>
         <div><label class="f">加成%</label><input data-i="${i}" data-k="bonus" type="number" value="${s.bonus == null ? '' : s.bonus}"></div>
       </div>
-      <label class="f">量子模块</label><select data-i="${i}" data-k="module">${mOpts(s.module)}</select>
+      <label class="f">量子强化${s.module ? '（图标签名已匹配）' : (s.badge_present ? '（有图标，待标定）' : '（无图标）')}</label><select data-i="${i}" data-k="module">${mOpts(s.module)}</select>
       <div class="grid2" style="margin-top:4px">
         <div><label class="f">光/暗</label><select data-i="${i}" data-k="side">
           <option value="" ${!s.side ? 'selected' : ''}>—</option>
@@ -358,10 +360,18 @@ $('#commitBtn').onclick = async () => {
       id: 'a' + Date.now().toString(36) + i,
       owner: ME.id, type_key: s.type_key || '', level: s.level, bonus: s.bonus,
       module: s.module || '', side: s.side || '', status: s.status || 'have',
-      note: '', img: '', badge_img: s.badge_img || '', sig: '',
+      note: '', img: '', badge_img: s.badge_img || '', sig: s.sig || '',
+      module_src: s.module ? 'manual' : '',
       t: Math.floor(Date.now() / 1000)
     }));
     await mutate(d => {
+      d.templates = d.templates || {};
+      for (const it of items) {
+        if (!it.module || !it.sig) continue;
+        const t = d.templates[it.module] = d.templates[it.module] || { side: it.side, sigs: [] };
+        if (it.side) t.side = it.side;
+        if (!t.sigs.includes(it.sig)) t.sigs.push(it.sig);
+      }
       d.artifacts = (d.artifacts || []).concat(items);
       d.notices = (d.notices || []).concat([{
         t: Math.floor(Date.now() / 1000), player: ME.name, img: '',
