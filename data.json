@@ -1,26 +1,6 @@
 {
- "updated": 1795492404,
+ "updated": 1795492480,
  "players": [
-  {
-   "id": "p1",
-   "name": "忆灵",
-   "note": ""
-  },
-  {
-   "id": "p2",
-   "name": "CannonM",
-   "note": ""
-  },
-  {
-   "id": "p3",
-   "name": "洋芋",
-   "note": ""
-  },
-  {
-   "id": "p4",
-   "name": "龙神天",
-   "note": ""
-  },
   {
    "id": "pmwu5fc4o",
    "name": "林大头",
@@ -32,41 +12,7 @@
   }
  ],
  "artifacts": [],
- "needs": [
-  {
-   "id": "n1",
-   "player": "p2",
-   "type_key": "",
-   "module": "",
-   "side": "暗",
-   "min_level": 11,
-   "min_bonus": 360,
-   "note": "优先换 360 的暗属性",
-   "status": "open"
-  },
-  {
-   "id": "n2",
-   "player": "p3",
-   "type_key": "mining",
-   "module": "hydro",
-   "side": "暗",
-   "min_level": 10,
-   "min_bonus": 358,
-   "note": "想凑一套 358 的",
-   "status": "open"
-  },
-  {
-   "id": "n3",
-   "player": "p4",
-   "type_key": "support",
-   "module": "fortify",
-   "side": "光",
-   "min_level": 11,
-   "min_bonus": 360,
-   "note": "固若金汤·光 换 2 件",
-   "status": "open"
-  }
- ],
+ "needs": [],
  "trades": [],
  "templates": {},
  "notices": [
@@ -75,6 +21,12 @@
    "player": "站长",
    "img": "",
    "note": "已清空全部神器库存（31 件），来自站长操作"
+  },
+  {
+   "t": 1795492480,
+   "player": "站长",
+   "img": "",
+   "note": "成员名单只保留林大头，已移除：忆灵、CannonM、洋芋、龙神天"
   }
  ]
 }
