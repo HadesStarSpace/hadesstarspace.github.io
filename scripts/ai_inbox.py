@@ -444,16 +444,24 @@ def square_center(bgr, keep=0.88):
 
 
 def bp_tone(icon):
-    """量子图纸：方块底色深=暗物质，底色浅=光物质（用中位亮度判定，避开图标本身的深色像素）"""
+    """量子图纸：只认「黑底方块（暗物质）/白底方块（光物质）」那两种图标；
+    灰色伞状那种（旧量子强化图标）以及空槽裁到的卡片底色都不算。
+    只看中心 62%：黑底方块中心灰度中位数≈3~10，白底≈250，卡片底色≈58，灰图≈137。"""
     if icon is None or icon.size == 0:
         return ""
-    g = cv2.cvtColor(icon, cv2.COLOR_BGR2GRAY)
-    med = float(np.median(g))
-    sd = float(g.std())
-    # 有图纸：方块底色几乎纯黑或纯白、且和卡片底色反差明显；空槽裁到的是卡片底色（中灰、低反差）
-    if sd < 45 or (20 <= med <= 240):
+    h, w = icon.shape[:2]
+    side = int(min(h, w) * 0.62)
+    cy, cx = h // 2, w // 2
+    y0 = max(0, cy - side // 2); x0 = max(0, cx - side // 2)
+    core = icon[y0:y0 + side, x0:x0 + side]
+    if core.size == 0:
         return ""
-    return "光" if med > 240 else "暗"
+    med = float(np.median(cv2.cvtColor(core, cv2.COLOR_BGR2GRAY)))
+    if med <= 25:
+        return "暗"
+    if med >= 235:
+        return "光"
+    return ""
 
 
 def lum_of(bgr):

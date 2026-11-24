@@ -111,3 +111,4 @@ dialog::backdrop{background:#000a}
 .bpcell.empty span { font-size:16px; color:#5d7a89; }
 .bpcell.empty i { font-size:10px; color:#4a6270; }
 @media (max-width:560px) { .bpgrid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+#resGrid .batchbar { grid-column:1/-1; margin-bottom:10px; flex-wrap:wrap; }

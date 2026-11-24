@@ -564,7 +564,7 @@ function renderResult() {
   $('#resCount').textContent = `共 ${pendingSlots.length} 件`;
   const noType = pendingSlots.filter(s => !s.type_key);
   const batchBar = noType.length ? `
-    <div class="row" style="margin-bottom:10px;align-items:center;gap:8px">
+    <div class="batchbar row" style="align-items:center;gap:8px">
       <span class="muted" style="font-size:12px">${noType.length} 件没认出类型（容器截图没有类型文字）</span>
       <select id="batchType" style="max-width:140px"><option value="">选类型…</option>${TYPES.map(t => `<option value="${t.key}">${t.name}</option>`).join('')}</select>
       <button class="btn ghost mini" id="batchApply">一次填好</button>
