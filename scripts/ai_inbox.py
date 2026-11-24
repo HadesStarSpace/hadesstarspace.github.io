@@ -725,7 +725,8 @@ def bp_slide(img, pill):
     return agg
 
 
-BP_FAMILY = {"trade": "trade", "mining": "crush", "weapon": "rocket"}
+# 图纸归属：运输舰神器（黄）=贸易爆发；采矿舰神器（紫）=矿物粉碎 + 氢气火箭
+BP_FAMILY = {"trade": ("trade",), "mining": ("crush", "rocket"), "weapon": ("rocket",)}
 
 
 def bp_scan(img, pill, layout="", type_key=""):
@@ -752,10 +753,10 @@ def bp_scan(img, pill, layout="", type_key=""):
         return best[0], True, []
     # 暗版图纸彼此长得很像（都是八边形线条），分数拉不开时用神器类型当先验：
     # 运输舰神器→贸易爆发，采矿舰神器→矿物粉碎（图纸是给这类模块加成的）
-    fam = BP_FAMILY.get(type_key or "", "")
+    fam = BP_FAMILY.get(type_key or "", ())
     if fam and best[1] >= 0.84:
         for k, v in top:
-            if k.split("_")[0] == fam and v >= 0.84:
+            if k.split("_")[0] in fam and v >= 0.84:
                 return k, True, []
     sug = [k for k, v in top[:2] if k] if best[1] >= 0.80 else []
     return "", saw, sug
