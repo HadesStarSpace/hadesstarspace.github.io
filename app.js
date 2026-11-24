@@ -32,8 +32,17 @@ async function decMembers(text){
   }catch(e){ console.warn('成员凭据解密失败',e); return []; }
 }
 async function loadMembers(){
-  const f=await getFile(MEMBER_FILE);
-  MEMBERS = (f && f.text) ? await decMembers(f.text) : [];
+  let f=null;
+  try { f = await getFile(MEMBER_FILE); } catch(e) { console.warn('成员库走 API 失败，改读静态文件', e); }
+  if (!f) {
+    try {
+      const r = await fetch(MEMBER_URL + '?_=' + Date.now(), { cache: 'no-store' });
+      if (r.ok) f = { text: await r.text(), sha: null };
+    } catch (e) { }
+  }
+  try {
+    MEMBERS = (f && f.text) ? await decMembers(f.text) : [];
+  } catch (e) { console.warn('成员库解密失败', e); MEMBERS = []; }
   MEM_SHA = f ? f.sha : null;
 }
 async function saveMembers(list,msg){
@@ -68,6 +77,7 @@ function pwCheck(pw){
 const API = 'https://api.github.com/repos/' + GH.owner + '/' + GH.repo;
 const RAW = 'https://raw.githubusercontent.com/' + GH.owner + '/' + GH.repo + '/' + GH.branch + '/';
 const JSD = 'https://cdn.jsdelivr.net/gh/' + GH.owner + '/' + GH.repo + '@' + GH.branch + '/';
+const MEMBER_URL = RAW + 'members.json';
 const H = { 'Accept': 'application/vnd.github+json', 'Authorization': 'Bearer ' + GH.token };
 
 const TYPES = [
