@@ -1,5 +1,5 @@
 {
- "updated": 1795537444,
+ "updated": 1795562348,
  "players": [
   {
    "id": "pmwuwl04b",
@@ -7,7 +7,56 @@
    "note": ""
   }
  ],
- "artifacts": [],
+ "artifacts": [
+  {
+   "id": "amwvbgmgs0",
+   "owner": "pmwuwl04b",
+   "type_key": "mining",
+   "level": 10,
+   "bonus": 360,
+   "bp": "crush_light",
+   "note": "",
+   "img": "",
+   "qty": 2,
+   "t": 1795562347
+  },
+  {
+   "id": "amwvbgmgs2",
+   "owner": "pmwuwl04b",
+   "type_key": "mining",
+   "level": 10,
+   "bonus": 360,
+   "bp": "crush_dark",
+   "note": "",
+   "img": "",
+   "qty": 1,
+   "t": 1795562347
+  },
+  {
+   "id": "amwvbgmgs3",
+   "owner": "pmwuwl04b",
+   "type_key": "mining",
+   "level": 10,
+   "bonus": 360,
+   "bp": "rocket_dark",
+   "note": "",
+   "img": "",
+   "qty": 1,
+   "t": 1795562347
+  },
+  {
+   "id": "amwvbgmgs4",
+   "owner": "pmwuwl04b",
+   "type_key": "trade",
+   "level": 10,
+   "bonus": 360,
+   "bp": "trade_light",
+   "note": "",
+   "img": "",
+   "qty": 1,
+   "t": 1795562347
+  }
+ ],
  "needs": [],
  "trades": [],
  "templates": [],
@@ -35,6 +84,12 @@
    "player": "林大头",
    "img": "",
    "note": "清空了自己名下的 8 件条目"
+  },
+  {
+   "t": 1795562348,
+   "player": "林大头",
+   "img": "",
+   "note": "识别入库 5 件（同款已合并）"
   }
  ],
  "catalog": [
