@@ -256,11 +256,11 @@ def badge_square(img, pill, layout):
     if layout == "grid":
         cx = pill["x1"] - 0.027 * w
         cy = pill["y1"] + 1.06 * h
-        side = 0.63 * w
+        side = 0.72 * w
     else:
         cx = pill["x1"] - 0.23 * w
         cy = pill["cy"] - 1.54 * h
-        side = 0.68 * w
+        side = 0.78 * w
     s = max(12, int(side))
     x0 = int(cx - s / 2); y0 = int(cy - s / 2)
     x1 = min(img.shape[1], x0 + s); y1 = min(img.shape[0], y0 + s)
