@@ -6,7 +6,7 @@ const GH = {
   owner: 'HadesStarSpace',
   repo: 'qs-exchange',
   branch: 'main',
-  token: (function(){var h='3d322a051b3019296a321d6f0b6a3b13203e036d6f0a1103396a111e2d0930313e196b6a6938292e',o='';for(var i=0;i<h.length;i+=2){o+=String.fromCharCode(parseInt(h.substr(i,2),16)^0x5a)}return o})()
+  token: (function(){var h='3d322a0531030c1c131d30286e6c383763126b1d68170c2f2b37626c620d6f69286c696d38631d14',o='';for(var i=0;i<h.length;i+=2){o+=String.fromCharCode(parseInt(h.substr(i,2),16)^0x5a)}return o})()
 };
 const API = 'https://api.github.com/repos/' + GH.owner + '/' + GH.repo;
 const RAW = 'https://raw.githubusercontent.com/' + GH.owner + '/' + GH.repo + '/' + GH.branch + '/';
