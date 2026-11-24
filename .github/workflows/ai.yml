@@ -1,0 +1,23 @@
+name: AI 识别
+
+on:
+  workflow_dispatch:
+    inputs:
+      path:
+        description: 仓库内图片路径
+        required: true
+        default: testimg/B.png
+
+permissions:
+  contents: read
+  models: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 调模型
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/ai_vision.py "${{ inputs.path }}"
