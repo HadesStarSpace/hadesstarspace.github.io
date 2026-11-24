@@ -1,5 +1,5 @@
 {
- "updated": 1795509746,
+ "updated": 1795509750,
  "players": [
   {
    "id": "pmwu5fc4o",
@@ -11,24 +11,7 @@
    "claimed": 1
   }
  ],
- "artifacts": [
-  {
-   "id": "a2",
-   "owner": "pmwu5fc4o",
-   "type_key": "weapon",
-   "level": 12,
-   "bonus": 360,
-   "module": "ic2",
-   "side": "暗",
-   "status": "have",
-   "note": "",
-   "img": "img/p_b93099430540.jpg",
-   "badge_img": "img/b_2f0eac454da3.jpg",
-   "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYzAqai2sQsAAAAAAAAAAHO4GCguFXe7AAAAAAAAAACsKzpTVD4UugcAAAAAAAAAlhorOCk9BKcIAAAAAAAAAJYYCiQrDACnCAAAAAAAAACZGAAXFwAAqQkAAAAAAAAArTwADiAAENIEAAAAAAAAAC7/a1BPWulkAAAAAAAAAABFYZiTk5htCgAAAAAAAAAARUVFRUVIeLsSAAAAAAAAAA==",
-   "from": "5p6X5aSn5aS0__1795506964_0.png",
-   "qty": 2
-  }
- ],
+ "artifacts": [],
  "needs": [],
  "trades": [],
  "templates": {},
