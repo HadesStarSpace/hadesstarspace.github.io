@@ -1,5 +1,5 @@
 {
- "updated": 1795509750,
+ "updated": 1795509789,
  "players": [
   {
    "id": "pmwu5fc4o",
@@ -11,7 +11,40 @@
    "claimed": 1
   }
  ],
- "artifacts": [],
+ "artifacts": [
+  {
+   "id": "a1",
+   "owner": "pmwu5fc4o",
+   "type_key": "trade",
+   "level": 11,
+   "bonus": 360,
+   "module": "ic1",
+   "side": "暗",
+   "status": "have",
+   "note": "",
+   "img": "img/p_04ae4ac3e7c2.jpg",
+   "badge_img": "img/b_7942bc63bd49.jpg",
+   "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABcpKSkMAAAAAAAAAAAAAITtmJag/z4AAAAAAAAAACr7CyseKCj6BwAAAAAAAABgczNAMjkpqyMAAAAAAAAAYWwiRT81F5olAAAAAAAAAGJsGkIsOSCaJQAAAAAAAABhZzZIQzUmnSUAAAAAAAAASbYcMCU8DuQUAAAAAAAAAAjzpGVnZ+GdAAAAAAAAAABVXam0tLSOEAAAAAAAAAAAVVVVVVVVf9sdAAAAAAAAAA==",
+   "from": "5p6X5aSn5aS0__1795509760_0.png",
+   "qty": 1
+  },
+  {
+   "id": "a2",
+   "owner": "pmwu5fc4o",
+   "type_key": "weapon",
+   "level": 12,
+   "bonus": 360,
+   "module": "ic2",
+   "side": "暗",
+   "status": "have",
+   "note": "",
+   "img": "img/p_d0c6876d45ac.jpg",
+   "badge_img": "img/b_6bf95f8cc602.jpg",
+   "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYy/qKi1sQsAAAAAAAAAAHK4GSctFne6AAAAAAAAAACsKzhSUz4VuwcAAAAAAAAAlxorNig9BKYJAAAAAAAAAJcYCiMqCwCmCQAAAAAAAACaGAAYGQAAqAkAAAAAAAAArDwADyEAD9IEAAAAAAAAAC//a05OWulmAAAAAAAAAABHY5uWlZlvCwAAAAAAAAAAR0dHR0dJe8EUAAAAAAAAAA==",
+   "from": "5p6X5aSn5aS0__1795509760_0.png",
+   "qty": 2
+  }
+ ],
  "needs": [],
  "trades": [],
  "templates": {},
@@ -99,19 +132,25 @@
    "player": "林大头",
    "img": "",
    "note": "AI 识别完成：5p6X5aSn5aS0__1795507498_0.png 张图认出 3 件（当前共 5 条）"
+  },
+  {
+   "t": 1795509789,
+   "player": "林大头",
+   "img": "",
+   "note": "AI 识别完成：5p6X5aSn5aS0__1795509760_0.png 张图认出 3 件（当前共 2 条）"
   }
  ],
  "icons": {
   "ic1": {
    "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABABMoKCkMAAAAAAAAAAAAAGfxl5Sd+0AAAAAAAAAAABn/ECwdKSX2BwAAAAAAAABKhDNBMzwrqCMAAAAAAAAATGsiRD01GpclAAAAAAAAAExpJkIrOSOWJQAAAAAAAABOcCxBQjEknCUAAAAAAAAANMcWMSU5Dt4UAAAAAAAAAATUs2RmZNqgAAAAAAAAAABTVp6vr6+MEAAAAAAAAAAAUlFSUlFSeNEcAAAAAAAAAA==",
    "thumb": "",
-   "n": 1,
+   "n": 2,
    "type": "trade"
   },
   "ic2": {
    "sig": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYzAqai2sQsAAAAAAAAAAHO4GCguFXe7AAAAAAAAAACsKzpTVD4UugcAAAAAAAAAlhorOCk9BKcIAAAAAAAAAJYYCiQrDACnCAAAAAAAAACZGAAXFwAAqQkAAAAAAAAArTwADiAAENIEAAAAAAAAAC7/a1BPWulkAAAAAAAAAABFYZiTk5htCgAAAAAAAAAARUVFRUVIeLsSAAAAAAAAAA==",
    "thumb": "",
-   "n": 2,
+   "n": 4,
    "type": "weapon"
   },
   "ic3": {
