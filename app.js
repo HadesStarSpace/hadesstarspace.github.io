@@ -705,10 +705,10 @@ function openEdit(id) {
   editing = Object.assign({}, S.artifacts.find(a => a.id === id));
   if (!editing) return;
   $('#eType').innerHTML = TYPES.map(t => `<option value="${t.key}" ${t.key === editing.type_key ? 'selected' : ''}>${t.name}</option>`).join('');
-  let ebBp = editing.bp || '';
+  editing.bp = editing.bp || '';
   const fillEBp = () => {
-    $('#eBp').innerHTML = bpChipHtml(ebBp, $('#eType').value);
-    bindBpPick($('#eBp'), v => { ebBp = v; });
+    $('#eBp').innerHTML = bpChipHtml(editing.bp, $('#eType').value);
+    bindBpPick($('#eBp'), v => { editing.bp = v; });
   };
   fillEBp();
   $('#eLevel').value = editing.level || '';
@@ -726,7 +726,7 @@ async function saveEdit() {
     type_key: $('#eType').value,
     level: $('#eLevel').value ? +$('#eLevel').value : null,
     bonus: $('#eBonus').value ? +$('#eBonus').value : null,
-    bp: ebBp
+    bp: editing.bp || ''
   };
   try {
     await mutate(d => {
