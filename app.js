@@ -27,6 +27,8 @@ const BP = {
   trade: { '暗': { name: '暗物质贸易爆发', img: 'img/bp/trade_dark.png' },
            '光': { name: '光物质贸易爆发', img: 'img/bp/trade_light.png' } }
 };
+/* 还没补图的类型，先用同一套「暗/光」方块图标顶上，别拿文字占位 */
+const BP_ICON = { '暗': 'img/bp/trade_dark.png', '光': 'img/bp/trade_light.png' };
 
 const $ = s => document.querySelector(s);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -51,10 +53,14 @@ function catEntry(level, typeKey) {
 }
 function catIcon(level, typeKey) { const e = catEntry(level, typeKey); return e ? IMG_BASE + e.img : ''; }
 function bpMeta(typeKey, tone) { const m = BP[typeKey]; return (m && m[tone]) || null; }
-function bpName(typeKey, tone) { const m = bpMeta(typeKey, tone); return m ? m.name : (tone || '') + '量子图纸'; }
+function bpName(typeKey, tone) {
+  const m = bpMeta(typeKey, tone);
+  return m ? m.name : (tone === '光' ? '光物质图纸' : '暗物质图纸');
+}
 function bpIcon(a) {
   const m = bpMeta(a.type_key, a.bp);
-  return m && m.img ? IMG_BASE + m.img : '';
+  const rel = (m && m.img) || BP_ICON[a.bp];
+  return rel ? IMG_BASE + rel : '';
 }
 function playerOf(id) { return ((S.players || []).find(p => p.id === id)) || {}; }
 function playerName(id) { const p = playerOf(id); return p.name || '未知'; }
@@ -209,9 +215,7 @@ function artCard(a, opts = {}) {
   const mod = '';
   const badgeEl = '';
   const bpNameV = a.bp ? bpName(a.type_key, a.bp) : '';
-  const bpEl = a.bp ? (bpIcon(a)
-    ? `<span class="bpico" title="${bpNameV}"><img src="${bpIcon(a)}" alt="${bpNameV}"></span>`
-    : `<span class="chip bptag">${bpNameV}</span>`) : '';
+  const bpEl = a.bp ? `<span class="bpico" title="${bpNameV}"><img src="${bpIcon(a)}" alt="${bpNameV}" loading="lazy"></span>` : '';
   const side = '';
   const qty = (a.qty || 1) > 1 ? `<span class="chip hi">×${a.qty}</span>` : '';
   const cc = contactOf(a.owner);
@@ -916,10 +920,9 @@ function renderBpGrid() {
     const m = BP[t.key] || {};
     return ['暗', '光'].map(tn => {
       const it = m[tn];
-      const name = it ? it.name : `${typeName(t.key)}·${tn}图纸（待补图标）`;
-      return it
-        ? `<div class="bpcell"><img src="${IMG_BASE}${it.img}" loading="lazy" alt="${name}"><i>${name}</i></div>`
-        : `<div class="bpcell empty"><span>${tn}</span><i>${name}</i></div>`;
+      const name = it ? it.name : (tn === '光' ? '光物质图纸' : '暗物质图纸');
+      const img = (it && it.img) || BP_ICON[tn];
+      return `<div class="bpcell"><img src="${IMG_BASE}${img}" loading="lazy" alt="${name}"><i>${name}</i></div>`;
     }).join('');
   }).join('');
   el.innerHTML = cells;
