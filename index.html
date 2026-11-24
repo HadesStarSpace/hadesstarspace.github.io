@@ -20,9 +20,13 @@
 
 <div class="card" id="meCard">
   <div class="lenflex" style="margin:0">
-    <div><div class="muted">当前身份</div><div id="meName" style="font-weight:600;font-size:15px">未登记</div></div>
-    <button class="btn ghost mini" onclick="openMe()">切换/新建</button>
+    <div><div class="muted">当前身份</div><div id="meName" style="font-weight:600;font-size:15px">未登录</div></div>
+    <div class="row" style="flex:0 0 auto">
+      <button class="btn mini" id="authBtn" onclick="openAuth()">登录 / 注册</button>
+      <button class="btn ghost mini hidden" id="logoutBtn" onclick="logout()">退出</button>
+    </div>
   </div>
+  <div class="muted" id="meHint" style="margin-top:6px">登录后才能上传、挂牌和发交换意向。</div>
 </div>
 
 <div class="tabs" id="tabs">
@@ -132,6 +136,30 @@
   <div class="row" style="margin-top:12px;justify-content:flex-end">
     <button class="btn ghost mini" onclick="dlgEdit.close()">取消</button>
     <button class="btn" id="eSave">保存</button>
+  </div>
+</dialog>
+
+<dialog id="dlgAuth">
+  <h3 style="margin:0 0 4px;font-size:15px" id="authTitle">登录</h3>
+  <div class="muted" style="margin-bottom:10px">用游戏名 + 账号密码进入，别用你在别处用过的密码。</div>
+  <div class="row" style="gap:6px;margin-bottom:12px">
+    <button class="btn mini" id="tabLogin" onclick="authMode('login')">登录</button>
+    <button class="btn ghost mini" id="tabReg" onclick="authMode('reg')">注册新成员</button>
+  </div>
+  <div id="loginBox">
+    <label class="f">账号</label><input id="lLogin" autocomplete="username" placeholder="拼音/英文都行">
+    <label class="f">密码</label><input id="lPw" type="password" autocomplete="current-password">
+  </div>
+  <div id="regBox" class="hidden">
+    <label class="f">游戏名（集团里显示的名字）</label><input id="rName" placeholder="例如 忆灵">
+    <label class="f">账号</label><input id="rLogin" autocomplete="username" placeholder="字母数字，登录用">
+    <label class="f">密码</label><input id="rPw" type="password" autocomplete="new-password" placeholder="至少 6 位">
+    <label class="f">再输一次密码</label><input id="rPw2" type="password" autocomplete="new-password">
+    <div class="muted" style="margin-top:6px">名字已在名单里的（忆灵 / CannonM / 洋芋 / 龙神天 等），注册时直接填自己的游戏名即可认领原有神器。</div>
+  </div>
+  <div class="row" style="margin-top:14px;justify-content:flex-end">
+    <button class="btn ghost mini" onclick="dlgAuth.close()">取消</button>
+    <button class="btn" id="authGo">登录</button>
   </div>
 </dialog>
 

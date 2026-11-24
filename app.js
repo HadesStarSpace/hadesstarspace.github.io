@@ -32,7 +32,8 @@ const TYPE_COLOR = Object.fromEntries(TYPES.map(t => [t.key, t.color]));
 const $ = s => document.querySelector(s);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let S = { players: [], artifacts: [], needs: [], trades: [], notices: [], templates: {} };
-let ME = JSON.parse(localStorage.getItem('qs_me') || 'null');
+let AUTH = JSON.parse(localStorage.getItem('qs_auth') || 'null');
+let ME = null;
 let dlgArtifact = null, editing = null, polling = false;
 
 function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('on'); setTimeout(() => e.classList.remove('on'), 2200); }
@@ -114,9 +115,13 @@ async function load() {
   $('#sTotal').textContent = S.artifacts.length;
   $('#sList').textContent = S.artifacts.filter(a => a.status === 'list').length;
   $('#sPlayers').textContent = S.players.length;
-  const me = S.players.find(p => ME && p.id === ME.id);
-  if (me) { ME = me; localStorage.setItem('qs_me', JSON.stringify(me)); }
-  $('#meName').textContent = me ? me.name : '未登记';
+  const me = S.players.find(p => AUTH && p.id === AUTH.id);
+  ME = me || null;
+  if (!me && AUTH) { AUTH = null; localStorage.removeItem('qs_auth'); }
+  $('#meName').textContent = me ? me.name : '未登录';
+  $('#meHint').textContent = me ? ('账号 ' + (me.login || '—') + ' · 已登录') : '登录后才能上传、挂牌和发交换意向。';
+  $('#authBtn').classList.toggle('hidden', !!me);
+  $('#logoutBtn').classList.toggle('hidden', !me);
   fillSelects();
   renderMarket(); renderMatch(); renderInbox(); renderMine(); renderNotices();
 }
@@ -196,7 +201,7 @@ function matchScore(a, n) {
 }
 
 function renderMatch() {
-  if (!ME) { $('#wantList').innerHTML = '<div class="empty">先登记身份</div>'; $('#offerList').innerHTML = ''; return; }
+  if (!ME) { $('#wantList').innerHTML = '<div class="empty">先登录</div>'; $('#offerList').innerHTML = ''; return; }
   const needs = S.needs.filter(n => n.status === 'open');
   const arts = S.artifacts.filter(a => a.status === 'list');
   const want = [], offer = [];
@@ -241,7 +246,7 @@ function tradeRow(t, mine) {
 }
 
 function renderInbox() {
-  if (!ME) { $('#inList').innerHTML = $('#outList').innerHTML = '<div class="empty">先登记身份</div>'; return; }
+  if (!ME) { $('#inList').innerHTML = $('#outList').innerHTML = '<div class="empty">先登录</div>'; return; }
   const inc = S.trades.filter(t => t.to === ME.id).reverse();
   const out = S.trades.filter(t => t.from === ME.id).reverse();
   $('#inList').innerHTML = inc.length ? inc.map(t => tradeRow(t, true)).join('') : '<div class="empty">还没有人向你发起交换</div>';
@@ -249,7 +254,7 @@ function renderInbox() {
 }
 
 function renderMine() {
-  if (!ME) { $('#mineList').innerHTML = $('#myNeedList').innerHTML = '<div class="empty">先登记身份</div>'; return; }
+  if (!ME) { $('#mineList').innerHTML = $('#myNeedList').innerHTML = '<div class="empty">先登录</div>'; return; }
   const arts = S.artifacts.filter(a => a.owner === ME.id);
   $('#mineList').innerHTML = arts.length ? arts.map(a => artCard(a, {
     hideOwner: true, actions: `
@@ -284,7 +289,7 @@ $('#pickBtn').onclick = () => $('#file').click();
 $('#file').onchange = async e => {
   const f = e.target.files[0];
   if (!f) return;
-  if (!ME) { toast('请先登记身份'); openMe(); return; }
+  if (!ME) { toast('请先登录'); openAuth(); return; }
   $('#upHint').textContent = '上传中…';
   try {
     const dataUrl = await downscale(f, 1240, 0.92);
@@ -420,7 +425,7 @@ async function saveEdit() {
 
 /* ---------------- 需求 ---------------- */
 async function postNeed() {
-  if (!ME) { toast('请先登记身份'); openMe(); return; }
+  if (!ME) { toast('请先登录'); openAuth(); return; }
   const body = {
     type_key: $('#nType').value, module: $('#nModule').value, side: $('#nSide').value,
     min_level: +$('#nLv').value || 0, min_bonus: +$('#nBonus').value || 0, note: $('#nNote').value
@@ -440,7 +445,7 @@ async function postNeed() {
 
 /* ---------------- 交换意向 ---------------- */
 function openTrade(aid) {
-  if (!ME) { toast('请先登记身份'); openMe(); return; }
+  if (!ME) { toast('请先登录'); openAuth(); return; }
   dlgArtifact = S.artifacts.find(a => a.id === aid);
   if (!dlgArtifact) return;
   if (dlgArtifact.owner === ME.id) { toast('这是你自己的神器'); return; }
@@ -492,23 +497,111 @@ async function act(id, action) {
   } catch (e) { toast('操作失败：' + e.message); }
 }
 
-/* ---------------- 身份 ---------------- */
-function openMe() {
-  const name = prompt('输入你在集团的游戏名：', ME ? ME.name : '');
-  if (!name) return;
-  const trimmed = name.trim();
-  if (!trimmed) return;
-  const found = S.players.find(p => p.name === trimmed);
-  if (found) {
-    ME = found;
-  } else {
-    ME = { id: 'p' + Date.now().toString(36), name: trimmed, note: '' };
-    mutate(d => { d.players = d.players || []; d.players.push(ME); }, '新成员 ' + trimmed)
-      .then(() => load()).catch(e => toast('登记失败：' + e.message));
-  }
-  localStorage.setItem('qs_me', JSON.stringify(ME));
-  $('#meName').textContent = ME.name;
-  toast('身份：' + ME.name);
+/* ---------------- 账号：注册 / 登录 ---------------- */
+const AUTH_KEY = 'qs_auth';
+let authModeNow = 'login';
+
+function randHex(n) {
+  const a = new Uint8Array(n); crypto.getRandomValues(a);
+  return Array.from(a).map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+async function hashPw(pw, salt) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: enc.encode(salt), iterations: 60000, hash: 'SHA-256' }, key, 256);
+  return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function fail(e) { toast(e.message || String(e)); }
+
+function openAuth(mode) {
+  authModeNow = mode || 'login';
+  authMode(authModeNow);
+  $('#lLogin').value = ''; $('#lPw').value = '';
+  $('#rName').value = ''; $('#rLogin').value = ''; $('#rPw').value = ''; $('#rPw2').value = '';
+  $('#dlgAuth').showModal();
+}
+
+function authMode(m) {
+  authModeNow = m;
+  const isLogin = m === 'login';
+  $('#loginBox').classList.toggle('hidden', !isLogin);
+  $('#regBox').classList.toggle('hidden', isLogin);
+  $('#tabLogin').className = (isLogin ? 'btn' : 'btn ghost') + ' mini';
+  $('#tabReg').className = (isLogin ? 'btn ghost' : 'btn') + ' mini';
+  $('#authTitle').textContent = isLogin ? '登录' : '注册新成员';
+  $('#authGo').textContent = isLogin ? '登录' : '注册并登录';
+}
+
+async function doLogin() {
+  const login = ($('#lLogin').value || '').trim().toLowerCase();
+  const pw = $('#lPw').value;
+  if (!login || !pw) { toast('账号和密码都要填'); return; }
+  $('#authGo').disabled = true;
+  try {
+    const d = await readData();
+    const p = (d.players || []).find(x => (x.login || '').toLowerCase() === login);
+    if (!p || !p.pw) { toast('账号不存在，或还没注册'); return; }
+    const h = await hashPw(pw, p.salt || '');
+    if (h !== p.pw) { toast('密码不对'); return; }
+    AUTH = { id: p.id, login: p.login, name: p.name };
+    localStorage.setItem(AUTH_KEY, JSON.stringify(AUTH));
+    $('#dlgAuth').close();
+    toast('欢迎回来，' + p.name);
+    await load();
+  } catch (e) { fail(e); } finally { $('#authGo').disabled = false; }
+}
+
+async function doReg() {
+  const name = ($('#rName').value || '').trim();
+  const login = ($('#rLogin').value || '').trim().toLowerCase();
+  const pw = $('#rPw').value;
+  const pw2 = $('#rPw2').value;
+  if (!name) { toast('请填游戏名'); return; }
+  if (!/^[a-z0-9_.-]{3,20}$/.test(login)) { toast('账号要 3–20 位字母数字'); return; }
+  if (pw.length < 6) { toast('密码至少 6 位'); return; }
+  if (pw !== pw2) { toast('两次密码不一致'); return; }
+  $('#authGo').disabled = true;
+  try {
+    const salt = randHex(8);
+    const pwHash = await hashPw(pw, salt);
+    let result = null;
+    await mutate(d => {
+      d.players = d.players || [];
+      if (d.players.some(x => (x.login || '').toLowerCase() === login))
+        throw new Error('这个账号已被占用');
+      const same = d.players.find(x => x.name === name);
+      if (same && same.pw) throw new Error('游戏名「' + name + '」已被别人注册');
+      if (same) {  // 认领名单里已有、还没设账号的成员
+        Object.assign(same, { login: login, salt: salt, pw: pwHash, claimed: 1 });
+        result = same;
+        return;
+      }
+      const np = {
+        id: 'p' + Date.now().toString(36), name: name, login: login, salt: salt, pw: pwHash, note: ''
+      };
+      d.players.push(np);
+      result = np;
+    }, '注册成员 ' + name);
+    if (!result) { toast('注册失败，请重试'); return; }
+    AUTH = { id: result.id, login: result.login, name: result.name };
+    localStorage.setItem(AUTH_KEY, JSON.stringify(AUTH));
+    $('#dlgAuth').close();
+    toast('注册成功，' + result.name + (result.claimed ? '（已认领原有神器）' : ''));
+    await load();
+  } catch (e) { fail(e); } finally { $('#authGo').disabled = false; }
+}
+
+$('#authGo').onclick = () => (authModeNow === 'login' ? doLogin() : doReg());
+$('#tabLogin').onclick = () => authMode('login');
+$('#tabReg').onclick = () => authMode('reg');
+
+function logout() {
+  AUTH = null; ME = null;
+  localStorage.removeItem(AUTH_KEY);
+  toast('已退出');
   load();
 }
 
