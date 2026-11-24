@@ -1,5 +1,5 @@
 {
- "updated": 1795491978,
+ "updated": 1795492012,
  "players": [
   {
    "id": "p1",
@@ -19,7 +19,11 @@
   {
    "id": "p4",
    "name": "龙神天",
-   "note": ""
+   "note": "",
+   "login": "lshtest",
+   "salt": "04012f7597280804",
+   "pw": "de433fdf543f78278e4a7d59e881909e62643247851be7c669f0887a8b75431d",
+   "claimed": 1
   },
   {
    "id": "pmwu5fc4o",
