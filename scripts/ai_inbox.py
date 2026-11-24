@@ -427,7 +427,7 @@ def main():
                 "side": loc.get("side") if loc else "暗",
                 "sig": sig, "lum": lum_of(icon),
                 "plate": save_img(loc["card"], "p") if loc and loc.get("card") is not None else "",
-                "badge_img": save_img(square_center(icon), "b") if icon is not None else "",
+                "badge_img": save_img(icon, "b") if icon is not None else "",
             })
         os.remove(path)
         print("认出", len(items), "件")
