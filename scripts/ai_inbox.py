@@ -187,7 +187,9 @@ def parse_items(path, img):
                 lvl = int(m.group(1))
         bns = read_bonus(img, bn) if bn else None
         it = dict(type=tkey, level=lvl, bonus=bns, name_y=nm["cy"], name_h=nm["h"],
-                  text_x=nm["x1"], pill=bn)
+                  text_x=nm["x1"], pill=bn,
+                  tboxes=[(l["x0"], l["cy"] - l["h"] / 2, l["x1"], l["cy"] + l["h"] / 2)
+                          for l in (nm, lv) if l])
         prev_y = (items[-1]["band_mid"] if items else 0)
         it["band_mid"] = nm["cy"] + nm["h"] * 1.3
         it["band"] = (int(max(0, prev_y)), int(min(H, it["band_mid"] + nm["h"] * 0.9)))
@@ -275,11 +277,16 @@ def parse_grid(path, img):
                     lvl = got
                     break
         if lvl is None:
-            lvl = level_chip(img, p)
+            lvl = level_chip(img, p); chip_ok = lvl is not None
         src_line = next((l for l in lines if l["x0"] == p["x0"] and l["cy"] == p["cy"]), None)
         bns = read_bonus(img, src_line) if src_line else None
+        tb = []
+        for l in lines:
+            if l["x1"] <= p["x0"] + 0.35 * w and l["x0"] >= p["x0"] - 12.0 * w \
+                    and p["y0"] - 5.0 * h <= l["cy"] <= p["y1"] + 1.5 * h:
+                tb.append((l["x0"], l["cy"] - l["h"] / 2, l["x1"], l["cy"] + l["h"] / 2))
         items.append(dict(type=None, level=lvl, bonus=bns if bonus_ok(bns) else None,
-                          layout="grid", pill=p))
+                          layout="grid", pill=p, tboxes=tb, chip_ok=chip_ok))
     return items
 
 
@@ -590,7 +597,7 @@ def item_card(img, it, layout, cellw=None, peers=None):
     if layout == "grid":
         half = min((cellw * 0.5) if cellw else 1.35 * w, 1.5 * w)
         x0 = pcx - half; x1 = pcx + half
-        y0 = p.get("y0", p["cy"] - h / 2) - 1.6 * h
+        y0 = p.get("y0", p["cy"] - h / 2) - 1.0 * h
         y1 = p.get("y1", p["cy"] + h / 2) + 8.0 * h
     else:
         x0 = p["x0"] - 4.6 * w; x1 = p["x1"] + 1.05 * w
@@ -602,17 +609,38 @@ def item_card(img, it, layout, cellw=None, peers=None):
         ny = it.get("name_y")
         if ny:
             y0 = min(y0, ny - 1.5 * h)
+        tbx = [b[0] for b in (it.get("tboxes") or [])]
+        if tbx:
+            # 有名字文字时，左边界贴到文字左缘，不要带上隔壁那件的图标
+            x0 = max(x0, min(tbx) - 0.15 * h)
+            for q in (peers or []):
+                qp = q.get("pill")
+                if qp and abs(qp["cy"] - p["cy"]) < 3.0 * h and qp["x1"] < p["x0"]:
+                    x0 = max(x0, qp["x1"] + 0.4 * h)
+            for q in (peers or []):
+                qp = q.get("pill")
+                if qp and abs(qp["cy"] - p["cy"]) < 3.0 * h and qp["x0"] > p["x1"]:
+                    qtx = [b[0] for b in (q.get("tboxes") or [])]
+                    edge = (min(qtx) - 0.2 * h) if qtx else (qp["x0"] - 1.4 * w)
+                    x1 = min(x1, edge)
     blob = artifact_blob(img, p)
     if blob:
         bx, by, bw, bh = blob
+        if layout == "grid":
+            # 等级那行字在神器上方一点点，等级小方块在神器下方：按神器高度收口，别拖出大片空白
+            y0 = min(y0, by - 1.15 * bh)
+            y1 = min(y1, by + bh + 1.75 * bh)
         x0 = min(x0, bx - 0.15 * bw); x1 = max(x1, bx + bw + 0.5 * bw)
         y0 = min(y0, by - 0.15 * bh); y1 = max(y1, by + bh + 0.15 * bh)
+    for tx0, ty0, tx1, ty1 in (it.get("tboxes") or []):
+        x0 = min(x0, tx0 - 0.15 * h)
+        y0 = min(y0, ty0 - 0.35 * h); y1 = max(y1, ty1 + 0.35 * h)
     for q in (peers or []):
         qp = q.get("pill")
         if not qp or qp is p:
             continue
         qcx = qp["x0"] + (qp["x1"] - qp["x0"]) / 2.0
-        if abs(qp["cy"] - p["cy"]) < 3.0 * h:              # 同一行、左右相邻：切在中间
+        if layout == "grid" and abs(qp["cy"] - p["cy"]) < 3.0 * h:   # 同一行、左右相邻：切在中间
             if qcx > pcx:
                 x1 = min(x1, (pcx + qcx) / 2.0)
             else:
@@ -622,6 +650,17 @@ def item_card(img, it, layout, cellw=None, peers=None):
                 y1 = min(y1, (p["cy"] + qp["cy"]) / 2.0 + 1.0 * h)
             else:
                 y0 = max(y0, (p["cy"] + qp["cy"]) / 2.0 + 0.2 * h)
+    if it.get("tboxes"):
+        y0 = max(y0, min(b[1] for b in it["tboxes"]) - 0.5 * h)
+        if layout != "grid":
+            y1 = min(y1, int(p.get("y1", p["cy"] + h / 2) + 0.55 * h))
+    if it.get("tboxes"):
+        # 最后一刀：同一行里右边那件的文字/药丸别带进来
+        for q in (peers or []):
+            qp = q.get("pill")
+            if qp and qp is not p and abs(qp["cy"] - p["cy"]) < 3.0 * h and qp["x0"] > p["x1"]:
+                qtx = [b[0] for b in (q.get("tboxes") or [])]
+                x1 = min(x1, (min(qtx) - 0.2 * h) if qtx else (qp["x0"] - 1.4 * w))
     x0 = max(0, int(x0)); x1 = min(img.shape[1], int(x1))
     y0 = max(0, int(y0)); y1 = min(img.shape[0], int(y1))
     if x1 - x0 < 20 or y1 - y0 < 20:
@@ -651,8 +690,15 @@ def item_card(img, it, layout, cellw=None, peers=None):
         ny = it.get("name_y")
         if ny and ny - 1.15 * h < y0:
             y0 = max(0, int(ny - 1.15 * h))
-        if layout == "grid" and it.get("level") is not None:
-            y1 = max(y1, int(p.get("y1", p["cy"]) + 7.6 * h))
+        if layout == "grid":
+            # 下方只放到「等级小方块」为止：再往下就是别的分区，留白太丑
+            if blob:
+                if it.get("chip_ok"):
+                    y1 = min(y1, int(max(blob[1] + blob[3] + 1.75 * blob[3],
+                                        p.get("y1", p["cy"]) + 1.15 * h)))
+                else:
+                    y1 = min(y1, int(p.get("y1", p["cy"] + h / 2) + 0.5 * h))
+            y1 = max(y1, int(p.get("y1", p["cy"]) + 0.35 * h))
     return img[y0:y1, x0:x1]
 
 
@@ -1298,7 +1344,8 @@ def main():
             # 先比「等级+加成」都读到的件数，再比读到加成的件数：容器版式靠薄荷色小方块认等级，通常更准
             return (sum(1 for x in xs if x.get("level") is not None and x.get("bonus") is not None),
                     sum(1 for x in xs if x.get("bonus") is not None), len(xs))
-        if grid and score(grid) >= score(items):
+        # 打平时优先列表版式：列表的预览带「神器名/等级/吨数」，核对更清楚
+        if grid and score(grid) > score(items):
             items = grid
         xs = sorted(it["pill"]["x0"] for it in items if it.get("pill"))
         gaps = [b - a for a, b in zip(xs, xs[1:]) if b - a > 20]
