@@ -90,7 +90,7 @@ def looks_like_pill(t):
 
 def bonus_ok(v):
     # 加成量级随等级/神器变化，别写死窄区间（12 级的 +720% 曾被判非法而丢掉）
-    return v is not None and 90 <= v <= 3000
+    return v is not None and 100 <= v <= 3000
 
 
 def read_bonus(img, l):
@@ -98,7 +98,8 @@ def read_bonus(img, l):
     if l is None:
         return None
     d = digits_only(l["t"])
-    if len(d) in (3, 4) and bonus_ok(int(d)):
+    # 以 0 开头基本是 OCR 把 +360% 读成 %098 这类残渣，别当加成
+    if len(d) in (3, 4) and d[0] != "0" and bonus_ok(int(d)):
         return int(d)
     m = re.search(r"(\d{3,4})", l["t"] or "")
     if m and bonus_ok(int(m.group(1))):
@@ -108,7 +109,7 @@ def read_bonus(img, l):
         for t in ocr_region(img, l["x0"] - pad * w, l["cy"] - (0.9 + pad) * h,
                             l["x1"] + pad * w, l["cy"] + (0.9 + pad) * h, scale=sc):
             d2 = digits_only(t["t"])
-            if len(d2) in (3, 4) and bonus_ok(int(d2)):
+            if len(d2) in (3, 4) and d2[0] != "0" and bonus_ok(int(d2)):
                 return int(d2)
     return None
 
@@ -127,6 +128,31 @@ def ocr_lines(path):
     return lines
 
 
+def mint_pill(img, nm):
+    """OCR 没认到 +N% 药丸（两列并排时左边的常并到芯片里）时，按薄荷绿底色直接把药丸框找回来"""
+    H, W = img.shape[:2]
+    x0 = int(max(0, nm["x1"] - 0.2 * nm["h"])); x1 = int(min(W, nm["x1"] + 7.5 * nm["h"]))
+    y0 = int(max(0, nm["cy"] - 0.6 * nm["h"])); y1 = int(min(H, nm["cy"] + 3.2 * nm["h"]))
+    if x1 - x0 < 20 or y1 - y0 < 12:
+        return None
+    hsv = cv2.cvtColor(img[y0:y1, x0:x1], cv2.COLOR_BGR2HSV)
+    m = ((hsv[:, :, 0] > 55) & (hsv[:, :, 0] < 105) & (hsv[:, :, 1] > 60) & (hsv[:, :, 2] > 70)).astype(np.uint8)
+    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+    n, lab, stats, _ = cv2.connectedComponentsWithStats(m, 8)
+    best = None
+    for j in range(1, n):
+        x, y, w, h, area = stats[j]
+        if area < 300 or w < 0.12 * (x1 - x0):
+            continue
+        score = area * (1.0 - 0.3 * abs((y + h / 2) - (nm["cy"] - y0 + 1.6 * nm["h"])) / max(1.0, (y1 - y0)))
+        if best is None or score > best[0]:
+            best = (score, (x0 + x, y0 + y, w, h))
+    if not best:
+        return None
+    x, y, w, h = best[1]
+    return dict(x0=x, x1=x + w, y0=y, y1=y + h, cy=y + h / 2.0, h=h, w=w, t="")
+
+
 def parse_items(path, img):
     H = img.shape[0]
     lines = ocr_lines(path)
@@ -134,6 +160,7 @@ def parse_items(path, img):
     levels = [l for l in lines if "等级" in l["t"]]
     pills = [l for l in lines if looks_like_pill(l["t"])]
     items = []
+    used = set()
     for nm in names:
         lv = None
         for l in levels:
@@ -143,8 +170,15 @@ def parse_items(path, img):
         bn = None
         for l in pills:
             if l["x0"] > nm["x1"] and nm["cy"] < l["cy"] < nm["cy"] + 3 * nm["h"]:
-                if bn is None or abs(l["cy"] - nm["cy"]) < abs(bn["cy"] - nm["cy"]):
+                if id(l) in used:
+                    continue
+                if bn is None or abs(l["x0"] - nm["x1"]) < abs(bn["x0"] - nm["x1"]):
                     bn = l
+        if bn is not None:
+            used.add(id(bn))
+        else:
+            # 两列并排时左列的 +N% 常被芯片压住/OCR 读丢：按薄荷绿底色补找
+            bn = mint_pill(img, nm)
         tkey = next((k for kw, k in TYPES if kw in nm["t"]), None)
         lvl = None
         if lv:
@@ -698,33 +732,48 @@ def bp_slide(img, pill):
     if x1 - x0 < 30 or y1 - y0 < 30:
         return {}, None
     reg = img[y0:y1, x0:x1]
+    # 药丸本身是亮薄荷色方块，和“光物质”图纸长得像，滑动时要把它扣掉，不然会把药丸当图纸
+    px0 = pill["x0"] - x0 - 0.45 * h; px1 = pill["x1"] - x0 + 0.45 * h
+    py0 = (cy - 0.5 * h) - y0 - 0.12 * h; py1 = (cy + 0.5 * h) - y0 + 0.12 * h
     agg = {}
+    wins = {}
     best = (0.0, 0, 0, 0)
+
+    def _on_pill(x, y, s):
+        # 只排掉“窗口中心落在药丸里”的（药丸本身像光物质方块）；图纸方块压在药丸边角上时不能误杀
+        cx = x + s / 2.0; cyy = y + s / 2.0
+        return px0 - 0.10 * s <= cx <= px1 + 0.10 * s and py0 - 0.10 * s <= cyy <= py1 + 0.10 * s
     for s in (int(0.45 * w), int(0.55 * w), int(0.65 * w)):
         if s < 16 or s > min(reg.shape[0], reg.shape[1]):
             continue
         st = max(5, s // 5)
         for y in range(0, reg.shape[0] - s + 1, st):
             for x in range(0, reg.shape[1] - s + 1, st):
+                if _on_pill(x, y, s):
+                    continue
                 q = _stretch64(reg[y:y + s, x:x + s])
                 for key, ref in _BP:
                     sc = float((q * ref).mean())
                     if sc > agg.get(key, 0.0):
                         agg[key] = sc
+                        wins[key] = (x, y, s)
                         if sc > best[0]:
                             best = (sc, x, y, s)
     # 精修：粗扫定位到 ±5px 就不错了，但图纸方块只有 50 多像素，差 2~3 像素分数会掉一大截
     if best[3]:
         _, bx, by, bs = best
-        for s2 in range(max(16, bs - 3), bs + 4):
-            for yy in range(max(0, by - 3), min(reg.shape[0] - s2, by + 4) + 1):
-                for xx in range(max(0, bx - 3), min(reg.shape[1] - s2, bx + 4) + 1):
+        for s2 in range(max(16, bs - 6), bs + 7):
+            for yy in range(max(0, by - 6), min(reg.shape[0] - s2, by + 7) + 1):
+                for xx in range(max(0, bx - 6), min(reg.shape[1] - s2, bx + 7) + 1):
+                    if _on_pill(xx, yy, s2):
+                        continue
                     q = _stretch64(reg[yy:yy + s2, xx:xx + s2])
                     for key, ref in _BP:
                         sc = float((q * ref).mean())
                         if sc > agg.get(key, 0.0):
                             agg[key] = sc
-    return agg, ((x0 + best[1], y0 + best[2], best[3]) if best[3] else None)
+                            wins[key] = (xx, yy, s2)
+    return agg, {k: (x0 + v[0], y0 + v[1], v[2]) for k, v in wins.items()}
 
 
 def _chip_box(img, win):
@@ -798,27 +847,33 @@ def load_shapes():
                     _SHAPE.append((bp["key"], sig))
 
 
-def _shape_scores(img, win):
-    """图纸方块与参考图的图案重合度。外框、底色一模一样时，靠这个分「矿物粉碎 / 氢气火箭」"""
-    win = _chip_box(img, win)
-    if not win or not _SHAPE:
+def _shape_scores(img, wins):
+    """图案重合度：每个图纸 key 在它自己最像的那个窗口里再比一次形状，
+    外框、底色一模一样时（暗/光同款、不同图纸同色框），靠这个分高下"""
+    if not wins or not _SHAPE:
         return {}
     best = {}
-    for pad in (0, 1, 2):
-        for dy in (0, -1, 1):
-            for dx in (0, 1, -1):
-                tile = img[win[1] + dy + pad:win[1] + win[3] + dy - pad,
-                           win[0] + dx + pad:win[0] + win[2] + dx - pad]
-                if tile.shape[0] < 20 or tile.shape[1] < 20:
-                    continue
-                q = _mask_sig(tile, 40, 0.62)
-                if q is None:
-                    continue
-                for key, ref in _SHAPE:
-                    inter = float((q * ref).sum()); uni = float(q.sum() + ref.sum() - inter)
-                    sc = inter / uni if uni else 0.0
-                    if sc > best.get(key, 0.0):
-                        best[key] = sc
+    for key, win in wins.items():
+        box = _chip_box(img, win)
+        if not box:
+            continue
+        x, y, w, h = box
+        for pad in (0, 1, 2):
+            for dy in (0, -1, 1):
+                for dx in (0, 1, -1):
+                    tile = img[y + dy + pad:y + h + dy - pad, x + dx + pad:x + w + dx - pad]
+                    if tile.shape[0] < 20 or tile.shape[1] < 20:
+                        continue
+                    q = _mask_sig(tile, 40, 0.62)
+                    if q is None:
+                        continue
+                    for key2, ref in _SHAPE:
+                        if key2 != key:
+                            continue
+                        inter = float((q * ref).sum()); uni = float(q.sum() + ref.sum() - inter)
+                        sc = inter / uni if uni else 0.0
+                        if sc > best.get(key, 0.0):
+                            best[key] = sc
     return best
 
 
@@ -826,7 +881,7 @@ def _shape_scores(img, win):
 BP_FAMILY = {"trade": ("trade",), "mining": ("crush", "rocket"), "weapon": ("laser", "launcher"), "shield": ("omega",)}
 
 
-def bp_scan(img, pill, layout="", type_key=""):
+def bp_scan(img, pill, layout="", type_key="", side=""):
     """两道工序合起来：轮廓法（老逻辑，容器/亮底好用）+ 滑动法（星球列表上的暗图纸）。
     返回 (key, saw)：key 为空但有 saw=True 表示“看到一张图纸但没认准”，前端提示手选。"""
     if not pill or not _BP:
@@ -835,8 +890,8 @@ def bp_scan(img, pill, layout="", type_key=""):
     old = bp_match(img, pill, layout) or ""
     if old:
         scores[old] = 0.80
-    agg, win = bp_slide(img, pill)
-    shape = _shape_scores(img, win)
+    agg, wins = bp_slide(img, pill)
+    shape = _shape_scores(img, wins)
     for k, v in agg.items():
         scores[k] = max(scores.get(k, 0.0), v)
     top = sorted(scores.items(), key=lambda kv: -kv[1])[:2]
@@ -859,6 +914,12 @@ def bp_scan(img, pill, layout="", type_key=""):
             pick = max(cand, key=lambda kv: kv[1] + 0.6 * shape.get(kv[0], 0.0))
             if pick[1] >= 0.88 or shape.get(pick[0], 0.0) >= 0.18:
                 return pick[0], True, []
+        # 同族内部（如护盾只有暗/光两张）整体相似度差一点时，用「相似度 + 图案重合度」在族内决出，够清楚就认
+        near2 = sorted(((k, v + 0.6 * shape.get(k, 0.0)) for k, v in scores.items()
+                        if k.split("_")[0] in fam and (v >= 0.72 or shape.get(k, 0.0) >= 0.60)), key=lambda kv: -kv[1])
+        if len(near2) >= 2 and near2[0][1] >= 1.15 and near2[0][1] - near2[1][1] >= 0.06 \
+                and shape.get(near2[0][0], 0.0) >= 0.68:
+            return near2[0][0], True, []
     sug = []
     if best[1] >= 0.80:
         comb = sorted(((k, v + 0.6 * shape.get(k, 0.0)) for k, v in scores.items() if v >= 0.78),
@@ -1013,7 +1074,9 @@ def main():
         cellw = sorted(gaps)[len(gaps) // 2] if gaps else None
         for it in items:
             loc = grid_windows(img, it, cellw) if it.get("layout") == "grid" else windows(img, it)
-            bp_key, bp_saw, bp_sug = bp_scan(img, it.get("pill"), "grid" if it.get("layout") == "grid" else "list", it.get("type") or "")
+            _side = (loc.get("side") if loc else "暗")
+            bp_key, bp_saw, bp_sug = bp_scan(img, it.get("pill"), "grid" if it.get("layout") == "grid" else "list",
+                                             it.get("type") or "", _side)
             bp_dark = bp_pending_tone(img, it.get("pill"))
             icon = loc.get("icon") if loc else None
             icon = square_center(icon) if icon is not None else None
