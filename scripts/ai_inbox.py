@@ -606,7 +606,7 @@ def item_card(img, it, layout, cellw=None, peers=None):
     if layout == "grid":
         half = min((cellw * 0.5) if cellw else 1.35 * w, 1.5 * w)
         x0 = pcx - half; x1 = pcx + half
-        y0 = p.get("y0", p["cy"] - h / 2) - 1.0 * h
+        y0 = p.get("y0", p["cy"] - h / 2) - 0.45 * h
         y1 = p.get("y1", p["cy"] + h / 2) + 8.0 * h
     else:
         x0 = p["x0"] - 4.6 * w; x1 = p["x1"] + 1.05 * w
@@ -635,6 +635,10 @@ def item_card(img, it, layout, cellw=None, peers=None):
     blob = artifact_blob(img, p)
     if blob:
         bx, by, bw, bh = blob
+        if layout == "grid" and blob[1] > p["cy"]:
+            # 船上「运载的文物」卡片：药丸在最上、本体在下，横向按药丸+本体并集收，不带隔壁卡片
+            x0 = max(x0, min(p["x0"] - 0.15 * w, bx - 0.05 * bw))
+            x1 = min(x1, max(p["x1"] + 0.15 * w, bx + bw + 0.05 * bw))
         if layout == "grid":
             # 等级那行字在神器上方一点点，等级小方块在神器下方：按神器高度收口，别拖出大片空白
             y0 = min(y0, by - 1.15 * bh)
@@ -706,8 +710,12 @@ def item_card(img, it, layout, cellw=None, peers=None):
                 if it.get("chip_ok"):
                     y1 = min(y1, int(max(blob[1] + blob[3] + 1.75 * blob[3],
                                         p.get("y1", p["cy"]) + 1.15 * h)))
+                elif it.get("level") is not None:
+                    # 等级读到了但小方块没认出来（船上「运载的文物」卡片：等级方块在本体下方）
+                    y1 = min(y1, int(p.get("y1", p["cy"] + h / 2) + 6.4 * h))
                 else:
-                    y1 = min(y1, int(p.get("y1", p["cy"] + h / 2) + 0.5 * h))
+                    y1 = min(y1, int(max(blob[1] + blob[3] + 0.4 * blob[3],
+                                        p.get("y1", p["cy"] + h / 2) + 0.6 * h)))
             y1 = max(y1, int(p.get("y1", p["cy"]) + 0.35 * h))
     tb = it.get("tboxes") or []
     if layout != "grid" and tb:
@@ -1412,6 +1420,9 @@ def main():
                 y1 = d.get("y1", d["cy"] + d["h"] / 2)
                 return [int(d["x0"]), int(y0), int(d["x1"]), int(y1)]
             blob = artifact_blob(img, it.get("pill"))
+            if layout == "grid" and blob is not None and blob[2] < 1.0 * it["pill"]["h"]:
+                # 容器/船上卡片底下一定有神器本体；找不到本体的「药丸」是误检（比如属性栏里的数值条）
+                continue
             coords = {
                 "pill": _bx(it.get("pill")),
                 "text": [[int(v) for v in b] for b in (it.get("tboxes") or [])],
