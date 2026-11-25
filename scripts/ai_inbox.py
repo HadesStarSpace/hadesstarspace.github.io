@@ -22,7 +22,7 @@ IMG = os.path.join(HERE, "img")
 
 ENGINE = RapidOCR()
 
-TYPES = [("运输舰", "trade"), ("武器", "weapon"), ("战斗", "weapon"), ("护盾", "shield"),
+TYPES = [("运输舰", "trade"), ("武器", "weapon"), ("战斗", "support"), ("护盾", "shield"),
          ("采矿", "mining"), ("支援", "support"), ("无人机", "drone")]
 
 ICON_MATCH = 0.13
@@ -89,7 +89,8 @@ def looks_like_pill(t):
 
 
 def bonus_ok(v):
-    return v is not None and 280 <= v <= 420
+    # 加成量级随等级/神器变化，别写死窄区间（12 级的 +720% 曾被判非法而丢掉）
+    return v is not None and 90 <= v <= 3000
 
 
 def read_bonus(img, l):
@@ -97,9 +98,9 @@ def read_bonus(img, l):
     if l is None:
         return None
     d = digits_only(l["t"])
-    if len(d) == 3 and bonus_ok(int(d)):
+    if len(d) in (3, 4) and bonus_ok(int(d)):
         return int(d)
-    m = re.search(r"(\d{3})", l["t"] or "")
+    m = re.search(r"(\d{3,4})", l["t"] or "")
     if m and bonus_ok(int(m.group(1))):
         return int(m.group(1))
     w = max(10.0, l["x1"] - l["x0"]); h = max(8.0, l["h"])
@@ -107,7 +108,7 @@ def read_bonus(img, l):
         for t in ocr_region(img, l["x0"] - pad * w, l["cy"] - (0.9 + pad) * h,
                             l["x1"] + pad * w, l["cy"] + (0.9 + pad) * h, scale=sc):
             d2 = digits_only(t["t"])
-            if len(d2) == 3 and bonus_ok(int(d2)):
+            if len(d2) in (3, 4) and bonus_ok(int(d2)):
                 return int(d2)
     return None
 
@@ -913,15 +914,34 @@ def hue_sig(bgr):
     return hist / (n if n else 1)
 
 
+# 神器主色（OpenCV 色相 0~180）：黄=运输舰、紫=采矿、绿=战斗、粉红=武器、青=护盾、橙=无人机
+HUE_CENTER = {"trade": 25, "drone": 20, "support": 55, "weapon": 166, "shield": 88, "mining": 122}
+
+
+def _hue_gap(a, b):
+    d = abs(a - b) % 180
+    return min(d, 180 - d)
+
+
 def type_of(card):
-    """神器颜色→类型：与图鉴图标比色相分布，票数不够就留空（宁可空着让人选）"""
+    """神器颜色→类型：先按主色相把候选收窄，再和图鉴图标比色相分布；拿不准就留空（宁可空着让人选）"""
     if card is None or not _CAT:
         return ""
     q = hue_sig(card)
+    peak_b = int(max(range(36), key=lambda i: q[i]))
+    peak = peak_b * 5
+    mass = float(q[max(0, peak_b - 2):peak_b + 3].sum())
+    # 65~100 是薄荷绿药丸/界面按钮的色相带，卡片里那块会把神器颜色带偏，落在这段就不敢按色相定
+    ok_hue = mass >= 0.62 and not (62 <= peak <= 102)
+    near = [k for k, c in HUE_CENTER.items() if _hue_gap(peak, c) <= 12] if ok_hue else []
+    if len(near) == 1:
+        return near[0]
     scores = []
     for key, sig in _CAT:
         den = float(np.linalg.norm(q) * np.linalg.norm(sig)) + 1e-9
         scores.append((float((q * sig).sum() / den), key))
+    if near:
+        scores = [x for x in scores if x[1] in near]
     scores.sort(reverse=True)
     top = scores[:6]
     votes = {}
