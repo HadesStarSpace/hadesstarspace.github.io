@@ -759,20 +759,29 @@ def bp_slide(img, pill):
                         wins[key] = (x, y, s)
                         if sc > best[0]:
                             best = (sc, x, y, s)
-    # 精修：粗扫定位到 ±5px 就不错了，但图纸方块只有 50 多像素，差 2~3 像素分数会掉一大截
-    if best[3]:
-        _, bx, by, bs = best
-        for s2 in range(max(16, bs - 6), bs + 7):
-            for yy in range(max(0, by - 6), min(reg.shape[0] - s2, by + 7) + 1):
-                for xx in range(max(0, bx - 6), min(reg.shape[1] - s2, bx + 7) + 1):
-                    if _on_pill(xx, yy, s2):
-                        continue
-                    q = _stretch64(reg[yy:yy + s2, xx:xx + s2])
-                    for key, ref in _BP:
-                        sc = float((q * ref).mean())
-                        if sc > agg.get(key, 0.0):
-                            agg[key] = sc
-                            wins[key] = (xx, yy, s2)
+    # 精修：粗扫是 5~6px 步长，图纸方块只有 50 多像素，差 2~3 像素分数会掉一大截。
+    # 改成「每个候选 key 精修自己的窗口」，只拿它自己的参考图比：既省算力，
+    # 又不会因为全局最佳窗口属于别的 key（同一张图明/暗极性不同）而漏掉真正的匹配。
+    rbk = {}
+    for key, ref in _BP:
+        rbk.setdefault(key, []).append(ref)
+    gwin = (best[1], best[2], best[3]) if best[3] else None
+    for key, _sc in sorted(agg.items(), key=lambda kv: -kv[1])[:6]:
+        anchors = [wins[key]]
+        if gwin and gwin != wins[key]:
+            anchors.append(gwin)
+        for bx, by, bs in anchors:
+            for s2 in range(max(16, bs - 6), bs + 7, 2):
+                for yy in range(max(0, by - 6), min(reg.shape[0] - s2, by + 7) + 1, 2):
+                    for xx in range(max(0, bx - 6), min(reg.shape[1] - s2, bx + 7) + 1, 2):
+                        if _on_pill(xx, yy, s2):
+                            continue
+                        q = _stretch64(reg[yy:yy + s2, xx:xx + s2])
+                        for ref in rbk[key]:
+                            sc = float((q * ref).mean())
+                            if sc > agg.get(key, 0.0):
+                                agg[key] = sc
+                                wins[key] = (xx, yy, s2)
     return agg, {k: (x0 + v[0], y0 + v[1], v[2]) for k, v in wins.items()}
 
 
@@ -878,7 +887,7 @@ def _shape_scores(img, wins):
 
 
 # 图纸归属：运输舰神器（黄）=贸易爆发；采矿舰神器（紫）=矿物粉碎 + 氢气火箭
-BP_FAMILY = {"trade": ("trade",), "mining": ("crush", "rocket"), "weapon": ("laser", "launcher"), "shield": ("omega",), "support": ("slauncher",)}
+BP_FAMILY = {"trade": ("trade",), "mining": ("crush", "rocket"), "weapon": ("laser", "launcher"), "shield": ("omega",), "support": ("slauncher",), "drone": ("drone",)}
 
 
 def bp_scan(img, pill, layout="", type_key="", side=""):
@@ -904,22 +913,30 @@ def bp_scan(img, pill, layout="", type_key="", side=""):
     if best[0] and ((best[1] >= BP_STRETCH and gap >= BP_MARGIN) or (best[1] >= BP_STRETCH_LO and gap >= BP_MARGIN_LO)
                     or (best[1] >= 0.88 and gap >= 0.08)):
         return best[0], True, []
-    # 暗版图纸彼此长得很像（都是八边形线条），分数拉不开时用神器类型当先验：
-    # 运输舰神器→贸易爆发，采矿舰神器→矿物粉碎（图纸是给这类模块加成的）
+    # 图纸方块只有两种底色：深底（暗物质）和浅底（光物质）。方块底色亮度是硬信息，
+    # 先用它把同族里明/暗两套排掉一半，剩下的同族图纸再用「相似度 + 图案重合度」决出。
     fam = BP_FAMILY.get(type_key or "", ())
     if fam:
-        cand = [(k, v) for k, v in scores.items() if k.split("_")[0] in fam and v >= 0.84]
-        if cand:
-            # 同色同框（外框、底色一样）时整体相似度会虚高，靠图案重合度分高下
-            pick = max(cand, key=lambda kv: kv[1] + 0.6 * shape.get(kv[0], 0.0))
-            if pick[1] >= 0.88 or shape.get(pick[0], 0.0) >= 0.18:
-                return pick[0], True, []
-        # 同族内部（如护盾只有暗/光两张）整体相似度差一点时，用「相似度 + 图案重合度」在族内决出，够清楚就认
-        near2 = sorted(((k, v + 0.6 * shape.get(k, 0.0)) for k, v in scores.items()
-                        if k.split("_")[0] in fam and (v >= 0.72 or shape.get(k, 0.0) >= 0.60)), key=lambda kv: -kv[1])
-        if len(near2) >= 2 and near2[0][1] >= 1.15 and near2[0][1] - near2[1][1] >= 0.06 \
-                and shape.get(near2[0][0], 0.0) >= 0.68:
-            return near2[0][0], True, []
+        bw = wins.get(best[0]) or wins.get(max(agg.items(), key=lambda kv: kv[1])[0] if agg else "")
+        if bw is None:
+            bw = wins[max(agg.items(), key=lambda kv: kv[1])[0]]
+        bx, by, bs = bw
+        box = img[by:by + bs, bx:bx + bs]
+        bg = 137.0
+        if box.size:
+            bg = float(np.median(cv2.cvtColor(box, cv2.COLOR_BGR2GRAY)))
+        tone = "_light" if bg >= 70 else "_dark"
+        cand = [(k, v) for k, v in scores.items()
+                if k.split("_")[0] in fam and k.endswith(tone)]
+        comb = sorted(((k, v + 0.6 * shape.get(k, 0.0)) for k, v in cand), key=lambda kv: -kv[1])
+        if len(comb) == 1:
+            # 同族同色调只剩一张：分数或图案够像就认（护盾只有一张，方块底色又对得上，错不了）
+            if (cand[0][1] >= 0.80 and shape.get(comb[0][0], 0.0) >= 0.12) or comb[0][1] >= 1.10:
+                return comb[0][0], True, []
+        elif len(comb) >= 2:
+            if comb[0][1] >= 1.05 and comb[0][1] - comb[1][1] >= 0.05 \
+                    and shape.get(comb[0][0], 0.0) >= 0.25:
+                return comb[0][0], True, []
     sug = []
     if best[1] >= 0.80:
         comb = sorted(((k, v + 0.6 * shape.get(k, 0.0)) for k, v in scores.items() if v >= 0.78),
