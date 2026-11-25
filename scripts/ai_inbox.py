@@ -516,6 +516,69 @@ def grid_windows(img, it, cellw=None):
     return dict(icon=icon, card=card, side=side)
 
 
+def artifact_blob(img, pill):
+    """在药丸附近找「神器本体」那个发光六边形：返回它的方框（就一个，离药丸最近的那个）。
+    神器图标是彩色发光的六边形，量子图纸小方块是黑白方块、薄荷色加成药丸是宽扁圆角条，
+    靠饱和度+宽高比就能把后两者排掉。"""
+    if not pill:
+        return None
+    w = pill["x1"] - pill["x0"]; h = pill["h"]
+    cx = pill["x0"] + w / 2.0; cyy = pill["cy"]
+    rx = int(3.4 * w); ry = int(3.4 * h)
+    x0 = max(0, int(cx - rx)); x1 = min(img.shape[1], int(cx + rx))
+    y0 = max(0, int(cyy - ry)); y1 = min(img.shape[0], int(cyy + ry))
+    if x1 - x0 < 20 or y1 - y0 < 20:
+        return None
+    sub = img[y0:y1, x0:x1]
+    hsv = cv2.cvtColor(sub, cv2.COLOR_BGR2HSV)
+    S = hsv[:, :, 1].astype(np.int16); V = hsv[:, :, 2].astype(np.int16)
+    mask = ((S > 55) & (V > 70)).astype(np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+    n, lab, st, _ = cv2.connectedComponentsWithStats(mask, 8)
+    pick = None
+    for j in range(1, n):
+        bx, by, bw, bh, area = st[j]
+        if area < 800 or bw < 0.8 * h or bh < 0.8 * h:
+            continue
+        if bw > 3.4 * w or bh > 3.4 * w:      # 一整条背景/边框，不是图标
+            continue
+        ar = bw / float(max(bh, 1))
+        if ar < 0.55 or ar > 2.7:
+            continue
+        hue = int(np.median(hsv[:, :, 0][lab == j]))
+        if 68 <= hue <= 100 and ar > 1.35:    # 薄荷绿加成药丸：宽扁
+            continue
+        px = x0 + bx + bw / 2.0; py = y0 + by + bh / 2.0
+        d = abs(px - cx) / float(w) + abs(py - cyy) / float(h)
+        if pick is None or d < pick[0]:
+            pick = (d, x0 + bx, y0 + by, bw, bh)
+    if not pick:
+        return None
+    _, bx, by, bw, bh = pick
+    if bw > bh * 1.15:
+        # 宽块 = 图标和加成药丸粘连，或两个神器挤在一起：按图标自身高度取方块，贴在离药丸近的那一头
+        side = int(bh * 1.05)
+        cx0 = bx + bw - side if (x0 + bx + bw / 2.0) > (pill["x0"] + pill["x1"]) / 2.0 else bx
+    else:
+        side = int(max(bw, bh) * 1.08); cx0 = bx + bw // 2 - side // 2
+    cy0 = by + bh // 2 - side // 2
+    cx0 = max(0, min(img.shape[1] - side, cx0)); cy0 = max(0, min(img.shape[0] - side, cy0))
+    return (cx0, cy0, side, side)
+
+
+def artifact_crop(img, it, layout=""):
+    """预览图只留一件神器本体：离这件药的加成药丸最近的那个发光图标方框"""
+    box = artifact_blob(img, it.get("pill"))
+    if not box:
+        return None
+    x, y, w, h = box
+    out = img[y:y + h, x:x + w]
+    if out is None or out.size == 0:
+        return None
+    return cv2.resize(out, (256, 256), interpolation=cv2.INTER_AREA)
+
+
 def square_center(bgr, keep=0.88):
     """裁成正方形：卡片上的小方框是正方形、按铺满显示，图不方就会“没对准”"""
     if bgr is None or bgr.size == 0:
@@ -1115,20 +1178,24 @@ def main():
         gaps = [b - a for a, b in zip(xs, xs[1:]) if b - a > 20]
         cellw = sorted(gaps)[len(gaps) // 2] if gaps else None
         for it in items:
-            loc = grid_windows(img, it, cellw) if it.get("layout") == "grid" else windows(img, it)
+            layout = "grid" if it.get("layout") == "grid" else "list"
+            loc = grid_windows(img, it, cellw) if layout == "grid" else windows(img, it)
             _side = (loc.get("side") if loc else "暗")
-            bp_key, bp_saw, bp_sug = bp_scan(img, it.get("pill"), "grid" if it.get("layout") == "grid" else "list",
-                                             it.get("type") or "", _side)
+            # 预览图只截这一件神器本体（一个发光六边形），顺带用它判颜色定类型：
+            # 先靠神器颜色定类型，再按类型去找量子图纸，比拿整张卡片猜色准得多
+            acrop = artifact_crop(img, it, layout)
+            tkey = it.get("type") or type_of(acrop) or type_of(loc.get("card") if loc else None)
+            bp_key, bp_saw, bp_sug = bp_scan(img, it.get("pill"), layout, tkey or "", _side)
             bp_dark = bp_pending_tone(img, it.get("pill"))
             icon = loc.get("icon") if loc else None
             icon = square_center(icon) if icon is not None else None
             sig = grad_sig(icon) if icon is not None else ""
             res["items"].append({
-                "type_key": it.get("type") or type_of(loc.get("card") if loc else None),
+                "type_key": tkey,
                 "level": it.get("level"), "bonus": it.get("bonus"),
                 "side": loc.get("side") if loc else "暗",
                 "sig": sig, "lum": lum_of(icon),
-                "plate": save_img(loc["card"], "p") if loc and loc.get("card") is not None else "",
+                "plate": save_img(acrop, "p") if acrop is not None else "",
                 "badge_img": save_img(icon, "b") if icon is not None else "",
                 "bp": bp_key, "bp_saw": bp_saw, "bp_dark_spot": bp_dark, "bp_sug": bp_sug,
             })
