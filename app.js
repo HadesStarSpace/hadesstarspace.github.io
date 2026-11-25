@@ -106,7 +106,9 @@ const BP_LIST = [
   { key: 'slauncher_dark', name: '暗物质火箭发射器', type: 'support', tone: '暗', img: 'img/bp/slauncher_dark.png' },
   { key: 'slauncher_light', name: '光物质火箭发射器', type: 'support', tone: '光', img: 'img/bp/slauncher_light.png' },
   { key: 'drone_dark', name: '暗物质火箭无人机', type: 'drone', tone: '暗', img: 'img/bp/drone_dark.png' },
-  { key: 'drone_light', name: '光物质火箭无人机', type: 'drone', tone: '光', img: 'img/bp/drone_light.png' }
+  { key: 'drone_light', name: '光物质火箭无人机', type: 'drone', tone: '光', img: 'img/bp/drone_light.png' },
+  { key: 'cerberus_dark', name: '暗物质地狱犬无人机', type: 'drone', tone: '暗', img: 'img/bp/cerberus_dark.png' },
+  { key: 'cerberus_light', name: '光物质地狱犬无人机', type: 'drone', tone: '光', img: 'img/bp/cerberus_light.png' }
 ];
 /* 还没补图的类型，先用同一套「暗/光」方块图标顶上，别拿文字占位 */
 const BP_ICON = { '暗': 'img/bp/trade_dark.png', '光': 'img/bp/trade_light.png' };

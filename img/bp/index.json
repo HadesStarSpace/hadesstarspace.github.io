@@ -160,6 +160,26 @@
       "alts": [
         "img/bp/drone_light_dim.png"
       ]
+    },
+    {
+      "key": "cerberus_dark",
+      "name": "暗物质地狱犬无人机",
+      "type": "无人机",
+      "tone": "暗",
+      "img": "img/bp/cerberus_dark.png",
+      "alts": [
+        "img/bp/cerberus_dark_dim.png"
+      ]
+    },
+    {
+      "key": "cerberus_light",
+      "name": "光物质地狱犬无人机",
+      "type": "无人机",
+      "tone": "光",
+      "img": "img/bp/cerberus_light.png",
+      "alts": [
+        "img/bp/cerberus_light_dim.png"
+      ]
     }
   ]
 }

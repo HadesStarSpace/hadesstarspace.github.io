@@ -722,7 +722,7 @@ def _stretch64(bgr):
     return (g - g.mean()) / (g.std() + 1e-6)
 
 
-def bp_slide(img, pill):
+def bp_slide(img, pill, type_key=""):
     """在药丸右上方的带子里滑动找方块（图纸小方块挂在这里），返回 [(分数, key)] 合表"""
     if not pill or not _BP:
         return {}, None
@@ -765,23 +765,48 @@ def bp_slide(img, pill):
     rbk = {}
     for key, ref in _BP:
         rbk.setdefault(key, []).append(ref)
-    gwin = (best[1], best[2], best[3]) if best[3] else None
+    # 方块底色定明/暗：深底认暗物质那套，浅底认光物质那套，同族里先排掉一半候选
+    tone = ""
+    if best[3]:
+        box = reg[best[2]:best[2] + best[3], best[1]:best[1] + best[3]]
+        if box.size:
+            tone = "_light" if float(np.median(cv2.cvtColor(box, cv2.COLOR_BGR2GRAY))) >= 70 else "_dark"
+    # 1) 每个候选 key 用自己的参考图在自己窗口周围找回精确位置（细线条图纸粗扫偏一点分数就塌）
     for key, _sc in sorted(agg.items(), key=lambda kv: -kv[1])[:6]:
-        anchors = [wins[key]]
-        if gwin and gwin != wins[key]:
-            anchors.append(gwin)
-        for bx, by, bs in anchors:
-            for s2 in range(max(16, bs - 6), bs + 7, 2):
-                for yy in range(max(0, by - 6), min(reg.shape[0] - s2, by + 7) + 1, 2):
-                    for xx in range(max(0, bx - 6), min(reg.shape[1] - s2, bx + 7) + 1, 2):
-                        if _on_pill(xx, yy, s2):
-                            continue
-                        q = _stretch64(reg[yy:yy + s2, xx:xx + s2])
-                        for ref in rbk[key]:
-                            sc = float((q * ref).mean())
-                            if sc > agg.get(key, 0.0):
-                                agg[key] = sc
-                                wins[key] = (xx, yy, s2)
+        bx, by, bs = wins[key]
+        for s2 in range(max(16, bs - 6), bs + 7):
+            for yy in range(max(0, by - 8), min(reg.shape[0] - s2, by + 8) + 1, 2):
+                for xx in range(max(0, bx - 8), min(reg.shape[1] - s2, bx + 8) + 1, 2):
+                    if _on_pill(xx, yy, s2):
+                        continue
+                    q = _stretch64(reg[yy:yy + s2, xx:xx + s2])
+                    for ref in rbk[key]:
+                        sc = float((q * ref).mean())
+                        if sc > agg.get(key, 0.0):
+                            agg[key] = sc
+                            wins[key] = (xx, yy, s2)
+    # 2) 方块附近最容易找对：以当前分数最高那张图（精修后）的窗口为锚，
+    #    用同色调的参考图再细扫一遍——细线条图纸只有在这一带才能扫出真分数
+    fam = BP_FAMILY.get(type_key or "", ())
+    tref = [(k, r) for k, r in _BP if ((not tone) or k.endswith(tone))
+            and ((not fam) or k.split("_")[0] in fam)]
+    anchors = []
+    if agg:
+        anchors.append(wins[max(agg.items(), key=lambda kv: kv[1])[0]])
+    if best[3] and best[1:4] != anchors[0]:
+        anchors.append((best[1], best[2], best[3]))
+    for ax, ay, asz in anchors:
+        for s2 in range(max(16, asz - 8), asz + 9, 2):
+            for yy in range(max(0, ay - 4), min(reg.shape[0] - s2, ay + 4) + 1):
+                for xx in range(max(0, ax - 4), min(reg.shape[1] - s2, ax + 4) + 1):
+                    if _on_pill(xx, yy, s2):
+                        continue
+                    q = _stretch64(reg[yy:yy + s2, xx:xx + s2])
+                    for key, ref in tref:
+                        sc = float((q * ref).mean())
+                        if sc > agg.get(key, 0.0):
+                            agg[key] = sc
+                            wins[key] = (xx, yy, s2)
     return agg, {k: (x0 + v[0], y0 + v[1], v[2]) for k, v in wins.items()}
 
 
@@ -887,7 +912,7 @@ def _shape_scores(img, wins):
 
 
 # 图纸归属：运输舰神器（黄）=贸易爆发；采矿舰神器（紫）=矿物粉碎 + 氢气火箭
-BP_FAMILY = {"trade": ("trade",), "mining": ("crush", "rocket"), "weapon": ("laser", "launcher"), "shield": ("omega",), "support": ("slauncher",), "drone": ("drone",)}
+BP_FAMILY = {"trade": ("trade",), "mining": ("crush", "rocket"), "weapon": ("laser", "launcher"), "shield": ("omega",), "support": ("slauncher",), "drone": ("drone", "cerberus")}
 
 
 def bp_scan(img, pill, layout="", type_key="", side=""):
@@ -899,7 +924,7 @@ def bp_scan(img, pill, layout="", type_key="", side=""):
     old = bp_match(img, pill, layout) or ""
     if old:
         scores[old] = 0.80
-    agg, wins = bp_slide(img, pill)
+    agg, wins = bp_slide(img, pill, type_key)
     shape = _shape_scores(img, wins)
     for k, v in agg.items():
         scores[k] = max(scores.get(k, 0.0), v)
