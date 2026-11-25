@@ -1,23 +1,29 @@
-import json, socket, subprocess, urllib.request
+import json, os, urllib.request, urllib.error
 
-print("local dns:", socket.gethostbyname_ex("models.github.ai"))
-for name in ["models.github.ai", "api.github.com"]:
-    for doh in ["https://dns.google/resolve?name=%s&type=A" % name, "https://cloudflare-dns.com/dns-query?name=%s&type=A" % name]:
-        try:
-            req = urllib.request.Request(doh, headers={"Accept": "application/dns-json", "User-Agent": "probe"})
-            with urllib.request.urlopen(req, timeout=20) as r:
-                d = json.loads(r.read().decode())
-            print("doh", name, [a.get("data") for a in d.get("Answer", [])][:8])
-        except Exception as e:
-            print("doh ERR", doh, e)
+tok = os.environ.get("GITHUB_TOKEN", "")
+print("token len", len(tok))
 
-ips = ["20.250.204.33", "20.98.171.60"]
-import os; tok = os.environ.get("GITHUB_TOKEN","")
-r = subprocess.run(["bash", "-lc", "echo ${GITHUB_TOKEN:-none} | head -c 4"], capture_output=True, text=True)
-print("token head:", r.stdout.strip())
-for ip in ips:
-    out = subprocess.run(["curl", "-sS", "-m", "30", "--resolve", "models.github.ai:443:" + ip,
-                          "-o", "/dev/stdout", "-w", "\n[http %{http_code} ip=%{remote_ip}]\n",
-                          "https://models.github.ai/inference/models",
-                          "-H", "Authorization: Bearer %s" % tok], capture_output=True, text=True)
-    print("try", ip, out.stdout[-300:], out.stderr[-200:])
+def hit(method, url, body=None, extra=None):
+    hdr = {"Accept": "application/json", "Authorization": "Bearer " + tok}
+    if extra:
+        hdr.update(extra)
+    data = json.dumps(body).encode() if body else None
+    if data:
+        hdr["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=data, method=method, headers=hdr)
+    try:
+        with urllib.request.urlopen(req, timeout=45) as r:
+            raw = r.read().decode("utf-8", "replace")
+            return r.status, dict(r.headers).get("Content-Type"), raw[:200]
+    except urllib.error.HTTPError as e:
+        return e.code, dict(e.headers).get("Content-Type"), e.read().decode("utf-8","replace")[:200]
+    except Exception as e:
+        return "ERR", "-", str(e)[:150]
+
+print("catalog", hit("GET", "https://models.github.ai/catalog/models"))
+print("inference-models", hit("GET", "https://models.github.ai/inference/models"))
+print("inference-cc-get", hit("GET", "https://models.github.ai/inference/chat/completions"))
+print("inference-cc-post", hit("POST", "https://models.github.ai/inference/chat/completions",
+      {"model": "openai/gpt-4o-mini", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 5}))
+print("api-models", hit("GET", "https://api.github.com/models"))
+print("ua", hit("GET", "https://models.github.ai/inference/models", extra={"User-Agent": "curl/8.5.0"}))
