@@ -32,7 +32,16 @@ jobs:
             python3 -m pip install -q --target deps --no-input rapidocr_onnxruntime==1.4.4 opencv-python-headless numpy
           fi
       - name: AI 识别截图并写出结果 inbox_out
-        run: PYTHONPATH=deps python3 scripts/ai_inbox.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -n "$GEMINI_API_KEY" ]; then
+            echo "有视觉模型 key：整张图交给视觉模型（不走 OCR）"
+            PYTHONPATH=deps python3 scripts/ai_vision.py
+          else
+            echo "没有 GEMINI_API_KEY：本轮仍走 OCR"
+            PYTHONPATH=deps python3 scripts/ai_inbox.py
+          fi
       - name: 提交结果（只提交数据，跳过 deps）
         run: |
           git config user.name "qsx-ai"
