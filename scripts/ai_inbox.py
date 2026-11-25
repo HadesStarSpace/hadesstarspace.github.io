@@ -1167,7 +1167,7 @@ def _shape_scores(img, wins):
 
 
 # 图纸归属：运输舰神器（黄）=贸易爆发；采矿舰神器（紫）=矿物粉碎 + 氢气火箭
-BP_FAMILY = {"trade": ("trade",), "mining": ("crush", "rocket"), "weapon": ("laser", "launcher"), "shield": ("omega",), "support": ("slauncher",), "drone": ("drone", "cerberus")}
+BP_FAMILY = {"trade": ("trade",), "mining": ("crush", "rocket"), "weapon": ("laser", "launcher"), "shield": ("omega",), "support": ("slauncher", "delta"), "drone": ("drone", "cerberus")}
 
 
 def bp_scan(img, pill, layout="", type_key="", side=""):
@@ -1180,9 +1180,27 @@ def bp_scan(img, pill, layout="", type_key="", side=""):
     if old:
         scores[old] = 0.80
     agg, wins = bp_slide(img, pill, type_key)
+    # 没带图纸的神器有时会被自己的发光六边形蹭出高分：排除落在「神器本体」正中心的窗口
+    blob = artifact_blob(img, pill)
+    if blob:
+        bx, by, bw, bh = blob
+        core_x1 = bx + bw; core_y1 = by + bh
+        for k, (wx, wy, bs) in list(wins.items()):
+            ccx = bx + bw / 2.0; ccy = by + bh / 2.0
+            half = min(bw, bh) * 0.34
+            ox = max(0, min(wx + bs, ccx + half) - max(wx, ccx - half))
+            oy = max(0, min(wy + bs, ccy + half) - max(wy, ccy - half))
+            if bs * bs and (ox * oy) / float(bs * bs) > 0.7:
+                agg.pop(k, None); wins.pop(k, None)
     shape = _shape_scores(img, wins)
+    if not agg and not old:
+        return "", False, []
     for k, v in agg.items():
         scores[k] = max(scores.get(k, 0.0), v)
+    fam = BP_FAMILY.get(type_key or "", ())
+    if fam:
+        # 类型已经从神器颜色判出来了，图纸就只在这类里面挑：别让外形相近的别类图纸抢走
+        scores = {k: v for k, v in scores.items() if k.split("_")[0] in fam}
     top = sorted(scores.items(), key=lambda kv: -kv[1])[:2]
     best = top[0] if top else ("", 0.0)
     second = top[1][1] if len(top) > 1 else 0.0
@@ -1195,7 +1213,7 @@ def bp_scan(img, pill, layout="", type_key="", side=""):
         return best[0], True, []
     # 图纸方块只有两种底色：深底（暗物质）和浅底（光物质）。方块底色亮度是硬信息，
     # 先用它把同族里明/暗两套排掉一半，剩下的同族图纸再用「相似度 + 图案重合度」决出。
-    fam = BP_FAMILY.get(type_key or "", ())
+    fam = fam
     if fam:
         bw = wins.get(best[0]) or wins.get(max(agg.items(), key=lambda kv: kv[1])[0] if agg else "")
         if bw is None:

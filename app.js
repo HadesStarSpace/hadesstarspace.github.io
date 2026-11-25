@@ -105,6 +105,8 @@ const BP_LIST = [
   { key: 'omega_light', name: '光物质奥米加护盾', type: 'shield', tone: '光', img: 'img/bp/omega_light.png' },
   { key: 'slauncher_dark', name: '暗物质火箭发射器', type: 'support', tone: '暗', img: 'img/bp/slauncher_dark.png' },
   { key: 'slauncher_light', name: '光物质火箭发射器', type: 'support', tone: '光', img: 'img/bp/slauncher_light.png' },
+  { key: 'delta_dark', name: '暗物质德尔塔火箭', type: 'support', tone: '暗', img: 'img/bp/delta_dark.png' },
+  { key: 'delta_light', name: '光物质德尔塔火箭', type: 'support', tone: '光', img: 'img/bp/delta_light.png' },
   { key: 'drone_dark', name: '暗物质火箭无人机', type: 'drone', tone: '暗', img: 'img/bp/drone_dark.png' },
   { key: 'drone_light', name: '光物质火箭无人机', type: 'drone', tone: '光', img: 'img/bp/drone_light.png' },
   { key: 'cerberus_dark', name: '暗物质地狱犬无人机', type: 'drone', tone: '暗', img: 'img/bp/cerberus_dark.png' },
