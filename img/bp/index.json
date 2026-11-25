@@ -120,6 +120,26 @@
       "alts": [
         "img/bp/omega_light_dim.png"
       ]
+    },
+    {
+      "key": "slauncher_dark",
+      "name": "暗物质火箭发射器",
+      "type": "战斗",
+      "tone": "暗",
+      "img": "img/bp/slauncher_dark.png",
+      "alts": [
+        "img/bp/slauncher_dark_dim.png"
+      ]
+    },
+    {
+      "key": "slauncher_light",
+      "name": "光物质火箭发射器",
+      "type": "战斗",
+      "tone": "光",
+      "img": "img/bp/slauncher_light.png",
+      "alts": [
+        "img/bp/slauncher_light_dim.png"
+      ]
     }
   ]
 }

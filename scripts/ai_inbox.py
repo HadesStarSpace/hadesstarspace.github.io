@@ -878,7 +878,7 @@ def _shape_scores(img, wins):
 
 
 # 图纸归属：运输舰神器（黄）=贸易爆发；采矿舰神器（紫）=矿物粉碎 + 氢气火箭
-BP_FAMILY = {"trade": ("trade",), "mining": ("crush", "rocket"), "weapon": ("laser", "launcher"), "shield": ("omega",)}
+BP_FAMILY = {"trade": ("trade",), "mining": ("crush", "rocket"), "weapon": ("laser", "launcher"), "shield": ("omega",), "support": ("slauncher",)}
 
 
 def bp_scan(img, pill, layout="", type_key="", side=""):
