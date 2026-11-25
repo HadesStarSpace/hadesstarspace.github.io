@@ -16,27 +16,24 @@ concurrency:
 jobs:
   recognize:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: 装依赖（视觉模型跑 CPU）
-        run: |
-          python3 -m pip install -q --no-input torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          python3 -m pip install -q --no-input transformers pillow numpy opencv-python-headless accelerate
-      - name: 缓存模型权重（15G 上限，命中就不用重新下）
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
-          path: ~/.cache/huggingface
-          key: vlm-qwen25vl3b-v1
+          path: deps
+          key: deps-rapidocr-v4
+      - name: 准备识别依赖（命中缓存就跳过 pip）
+        run: |
+          if [ ! -d deps/rapidocr_onnxruntime ]; then
+            python3 -m venv .venv || true
+            python3 -m pip install -q --target deps --no-input rapidocr_onnxruntime==1.4.4 opencv-python-headless numpy
+          fi
       - name: AI 识别截图并写出结果 inbox_out
-        env:
-          VLM_MODEL: Qwen/Qwen2.5-VL-3B-Instruct
-          HF_HUB_DISABLE_PROGRESS_BARS: '1'
-        run: python3 scripts/ai_inbox.py
-      - name: 提交结果（只提交数据）
+        run: PYTHONPATH=deps python3 scripts/ai_inbox.py
+      - name: 提交结果（只提交数据，跳过 deps）
         run: |
           git config user.name "qsx-ai"
           git config user.email "qsx-ai@users.noreply.github.com"
