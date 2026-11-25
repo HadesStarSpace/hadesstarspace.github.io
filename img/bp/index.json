@@ -67,7 +67,9 @@
       "type": "武器",
       "tone": "暗",
       "img": "img/bp/laser_dark.png",
-      "alts": []
+      "alts": [
+        "img/bp/laser_dark_dim.png"
+      ]
     },
     {
       "key": "laser_light",
@@ -75,7 +77,9 @@
       "type": "武器",
       "tone": "光",
       "img": "img/bp/laser_light.png",
-      "alts": []
+      "alts": [
+        "img/bp/laser_light_dim.png"
+      ]
     }
   ]
 }
