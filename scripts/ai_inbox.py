@@ -579,6 +579,56 @@ def artifact_crop(img, it, layout=""):
     return cv2.resize(out, (256, 256), interpolation=cv2.INTER_AREA)
 
 
+def item_card(img, it, layout, cellw=None, peers=None):
+    """核对用预览：这一件的完整卡片——神器本体 + 加成药丸 + 量子图纸小方块 + 等级，
+    横向裁到相邻那一件的中间线为止，保证一张图里只有一件神器。"""
+    p = it.get("pill")
+    if not p:
+        return None
+    w = p["x1"] - p["x0"]; h = p["h"]
+    pcx = p["x0"] + w / 2.0
+    if layout == "grid":
+        half = min((cellw * 0.5) if cellw else 1.35 * w, 1.5 * w)
+        x0 = pcx - half; x1 = pcx + half
+        y0 = p.get("y0", p["cy"] - h / 2) - 0.9 * h
+        y1 = p.get("y1", p["cy"] + h / 2) + 8.2 * h
+    else:
+        x0 = p["x0"] - 4.6 * w; x1 = p["x1"] + 1.3 * w
+        # 星球货物列表里「神器名/等级/吨数」在这件卡片最左边，按 OCR 读到的名字右缘往左补
+        tx = it.get("text_x")
+        if tx:
+            x0 = min(x0, tx - 0.26 * img.shape[1])
+        y0 = p["cy"] - 4.4 * h; y1 = p["cy"] + 1.2 * h
+        ny = it.get("name_y")
+        if ny:
+            y0 = min(y0, ny - 1.6 * h)
+    blob = artifact_blob(img, p)
+    if blob:
+        bx, by, bw, bh = blob
+        x0 = min(x0, bx - 0.15 * bw); x1 = max(x1, bx + bw + 0.5 * bw)
+        y0 = min(y0, by - 0.15 * bh); y1 = max(y1, by + bh + 0.15 * bh)
+    for q in (peers or []):
+        qp = q.get("pill")
+        if not qp or qp is p:
+            continue
+        qcx = qp["x0"] + (qp["x1"] - qp["x0"]) / 2.0
+        if abs(qp["cy"] - p["cy"]) < 3.0 * h:              # 同一行、左右相邻：切在中间
+            if qcx > pcx:
+                x1 = min(x1, (pcx + qcx) / 2.0)
+            else:
+                x0 = max(x0, (pcx + qcx) / 2.0)
+        elif abs(qcx - pcx) < 2.5 * w:                      # 同一列、上下相邻：切在中间
+            if qp["cy"] > p["cy"]:
+                y1 = min(y1, (p["cy"] + qp["cy"]) / 2.0 + 1.0 * h)
+            else:
+                y0 = max(y0, (p["cy"] + qp["cy"]) / 2.0 + 0.2 * h)
+    x0 = max(0, int(x0)); x1 = min(img.shape[1], int(x1))
+    y0 = max(0, int(y0)); y1 = min(img.shape[0], int(y1))
+    if x1 - x0 < 20 or y1 - y0 < 20:
+        return None
+    return img[y0:y1, x0:x1]
+
+
 def square_center(bgr, keep=0.88):
     """裁成正方形：卡片上的小方框是正方形、按铺满显示，图不方就会“没对准”"""
     if bgr is None or bgr.size == 0:
@@ -1185,6 +1235,9 @@ def main():
             # 先靠神器颜色定类型，再按类型去找量子图纸，比拿整张卡片猜色准得多
             acrop = artifact_crop(img, it, layout)
             tkey = it.get("type") or type_of(acrop) or type_of(loc.get("card") if loc else None)
+            card = item_card(img, it, layout, cellw, items)
+            if card is None and loc and loc.get("card") is not None:
+                card = loc["card"]
             bp_key, bp_saw, bp_sug = bp_scan(img, it.get("pill"), layout, tkey or "", _side)
             bp_dark = bp_pending_tone(img, it.get("pill"))
             icon = loc.get("icon") if loc else None
@@ -1195,7 +1248,7 @@ def main():
                 "level": it.get("level"), "bonus": it.get("bonus"),
                 "side": loc.get("side") if loc else "暗",
                 "sig": sig, "lum": lum_of(icon),
-                "plate": save_img(acrop, "p") if acrop is not None else "",
+                "plate": save_img(card, "p") if card is not None else "",
                 "badge_img": save_img(icon, "b") if icon is not None else "",
                 "bp": bp_key, "bp_saw": bp_saw, "bp_dark_spot": bp_dark, "bp_sug": bp_sug,
             })
