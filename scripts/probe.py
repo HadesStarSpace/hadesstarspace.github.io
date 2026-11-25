@@ -1,18 +1,13 @@
-import json
+import time
 from gradio_client import Client, handle_file
-Q = "这张游戏截图里有几件遗物？每件的加成百分比是多少？只答事实。"
-img = handle_file("scripts/_probe.jpg")
-for sid in ["HuggingFaceTB/SmolVLM", "HuggingFaceTB/SmolVLM2"]:
+Q = ("这是《Hades' Star》中文截图，图中有若干件遗物（神器）。先说出总共几件，"
+     "再每件一行，格式：类型|等级|加成%|吨数。类型按颜色选一个：运输舰(黄)/采矿(紫)/武器(红)/护盾(蓝)/战斗(绿)/无人机(橙)。"
+     "看不清的字段写 ?。不要解释，不要客套。")
+c = Client("HuggingFaceTB/SmolVLM", verbose=False)
+for i in range(4):
+    t0 = time.time()
     try:
-        c = Client(sid, verbose=False)
-        api = c.view_api(return_format="dict", print_info=False)
-        print("==", sid, json.dumps(api["named_endpoints"]["/chat"]["parameters"], ensure_ascii=False)[:800])
-        for payload in [{"text": Q, "files": [img]}, {"text": Q, "image": img}]:
-            try:
-                out = c.predict(payload, api_name="/chat")
-                print("   ok", json.dumps(str(out)[:400], ensure_ascii=False))
-                break
-            except Exception as e:
-                print("   payload fail", list(payload), type(e).__name__, str(e)[:150])
+        out = c.predict({"text": Q, "files": [handle_file("scripts/_probe%d.jpg" % i)]}, api_name="/chat")
+        print("img%d %.0fs: %s" % (i, time.time() - t0, str(out)[:400].replace("\n", " / ")))
     except Exception as e:
-        print("==", sid, "FAIL", type(e).__name__, str(e)[:200])
+        print("img%d FAIL %s %s" % (i, type(e).__name__, str(e)[:150]))
