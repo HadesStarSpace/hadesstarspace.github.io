@@ -107,7 +107,9 @@
       "type": "护盾",
       "tone": "暗",
       "img": "img/bp/omega_dark.png",
-      "alts": []
+      "alts": [
+        "img/bp/omega_dark_dim.png"
+      ]
     },
     {
       "key": "omega_light",
@@ -115,7 +117,9 @@
       "type": "护盾",
       "tone": "光",
       "img": "img/bp/omega_light.png",
-      "alts": []
+      "alts": [
+        "img/bp/omega_light_dim.png"
+      ]
     }
   ]
 }
