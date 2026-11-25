@@ -637,7 +637,7 @@ def item_card(img, it, layout, cellw=None, peers=None):
         pcx = max(0, min(mask.shape[1] - 1, pcx)); pcy = max(0, min(mask.shape[0] - 1, pcy))
         gx0, gy0, gx1, gy1 = _grow_box(mask, max(0, pcy - 2), min(mask.shape[0] - 1, pcy + 2),
                                        max(0, pcx - 2), min(mask.shape[1] - 1, pcx + 2),
-                                       int(max(4, 0.5 * h)), int(max(8, 2.2 * w)), int(max(5, 0.55 * w)))
+                                       int(max(4, 0.5 * h)), int(max(6, 2.4 * h)), int(max(8, 2.2 * w)), int(max(5, 0.55 * w)))
         pad = int(0.12 * h)
         gx0 = max(0, gx0 - pad); gy0 = max(0, gy0 - pad)
         gx1 = min(img.shape[1] - x0 - 1, gx1 + pad); gy1 = min(img.shape[0] - y0 - 1, gy1 + pad)
@@ -647,10 +647,16 @@ def item_card(img, it, layout, cellw=None, peers=None):
         blob = artifact_blob(img, p)
         if blob and (blob[0] < x0 - 2 or blob[1] < y0 - 2):
             x0 = min(x0, blob[0]); y0 = min(y0, blob[1])
+        # 等级/名字在读到的文字行上方：生长间距不够时也补进来，别让预览缺了等级
+        ny = it.get("name_y")
+        if ny and ny - 1.15 * h < y0:
+            y0 = max(0, int(ny - 1.15 * h))
+        if layout == "grid" and it.get("level") is not None:
+            y1 = max(y1, int(p.get("y1", p["cy"]) + 7.6 * h))
     return img[y0:y1, x0:x1]
 
 
-def _grow_box(mask, cy0, cy1, cx0, cx1, gap_y, gap_xl, gap_xr):
+def _grow_box(mask, cy0, cy1, cx0, cx1, gap_yu, gap_yd, gap_xl, gap_xr):
     """从种子（药丸所在的几行几列）往外长，遇到连续空白超过 gap 就停：刚好框住这一件的文字+图标"""
     H, W = mask.shape
     ys = mask.any(axis=1)
@@ -662,7 +668,7 @@ def _grow_box(mask, cy0, cy1, cx0, cx1, gap_y, gap_xl, gap_xr):
             y0 = y; blank = 0
         else:
             blank += 1
-            if blank > gap_y:
+            if blank > gap_yu:
                 break
         y -= 1
     blank = 0
@@ -672,7 +678,7 @@ def _grow_box(mask, cy0, cy1, cx0, cx1, gap_y, gap_xl, gap_xr):
             y1 = y; blank = 0
         else:
             blank += 1
-            if blank > gap_y:
+            if blank > gap_yd:
                 break
         y += 1
     xs = mask[y0:y1 + 1].any(axis=0)
