@@ -1,6 +1,6 @@
-"""AI 识别（跑在 GitHub Actions 里）：整张截图交给视觉模型，模型直接给出
-「神器类型 / 名字 / 等级 / 吨数 / 加成 / 量子图纸」以及这件卡片在图里的方框。
-不再做任何 OCR：文字、坐标都由模型给，识别不到就留空让用户手填。
+"""AI 识别（跑在 GitHub Actions 里）：整张截图交给本地视觉模型（Qwen2.5-VL-3B），
+模型直接读出「神器类型 / 名字 / 等级 / 加成 / 量子图纸」并给出每件卡片在图里的方框。
+全程没有 OCR，也不需要外部 API key：权重从 HuggingFace 取，CPU 上跑。
 
 inbox 里的文件名格式：<base64url 用户名>__<时间戳>_<序号>.png
 """
@@ -8,13 +8,12 @@ import base64
 import hashlib
 import json
 import os
-import sys
+import re
 import time
-import urllib.error
-import urllib.request
 
 import cv2
 import numpy as np
+from PIL import Image
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(HERE, "data.json")
@@ -26,8 +25,8 @@ BPINDEX = os.path.join(HERE, "img", "bp", "index.json")
 TYPES = [("运输舰", "trade"), ("武器", "weapon"), ("战斗", "support"), ("护盾", "shield"),
          ("采矿", "mining"), ("支援", "support"), ("无人机", "drone")]
 
-MODEL = os.environ.get("VISION_MODEL", "openai/gpt-4o")
-ENDPOINT = "https://models.github.ai/inference/chat/completions"
+MODEL_ID = os.environ.get("VLM_MODEL", "Qwen/Qwen2.5-VL-3B-Instruct")
+MAX_SIDE = int(os.environ.get("VLM_MAX_SIDE", "1400"))
 
 BP_LIST = []
 
@@ -45,83 +44,88 @@ def load_blueprints():
     return BP_LIST
 
 
-# ---------- 视觉模型 ----------
-def _b64_jpeg(path, max_side=1600):
-    img = cv2.imread(path)
-    if img is None:
-        return None, None
-    h, w = img.shape[:2]
-    scale = min(1.0, max_side / float(max(h, w)))
-    if scale < 1.0:
-        img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
-    ok, buf = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 88])
-    if not ok:
-        return None, None
-    return base64.b64encode(buf.tobytes()).decode(), img.shape[:2]
+PROMPT = """这是游戏《Hades' Star》的中文截图。图里可能有若干件「神器（遗物/artifact）」，出现在：
+1) 星球「货物」列表：每件是「神器名 / 等级N / 吨数 / 右侧图标与 +加成」；
+2) 神器容器：网格卡片，上面 +加成，中间量子图纸小方块，下面发光六边形本体与等级小方块；
+3) 运输舰详情页「运载的文物」：每张卡片上面是 +N%%，中间图纸方块，下面发光本体，最底部薄荷色等级小方块。
 
-
-PROMPT = """这是游戏《Hades' Star》的中文截图。图里有若干件「神器（遗物/artifact）」，可能出现在：
-1) 星球的「货物」列表（每行：神器名 / 等级N / 吨数 / 右侧图标和 +加成）；
-2) 神器容器（网格卡片：上面 +加成、中间量子图纸小方块、下面发光六边形本体和等级小方块）；
-3) 运输舰详情页的「运载的文物」（每张卡片：上方 +N%%、中间图纸方块、下面发光本体、最底部左侧薄荷色等级小方块）。
-
-请把图里每一件神器都列出来，逐件给出：
-- type：只能是这几个中文词之一：运输舰 / 采矿 / 武器 / 护盾 / 战斗 / 无人机（按神器的颜色判断：黄=运输舰，紫=采矿，红=武器，蓝=护盾，绿=战斗，橙=无人机）
-- name：神器名字（如「运输舰神器」「无人机神器」），看不清就 null
-- level：等级整数（截图里写作「等级12」或底部薄荷色小方块里的数字），看不清就 null
-- tons：吨数整数（如「50吨」里的 50；容器卡片没有吨数就 null）
-- bonus：加成百分比的数字（如「+360%%」就是 360；「+720%%」就是 720），看不清就 null
-- bp：这件神器挂的「量子图纸」key，必须从下面清单里选一个；没有量子图纸方块、或方块看不清，一律 null
-- boxes：这件卡片在图上的外接矩形，坐标用 0-1000 的归一化整数 [x0,y0,x1,y1]（左上角是 [0,0]，右下角是 [1000,1000]）。
-  要求：box 要把这一件的「加成药丸 + 量子图纸方块（若有）+ 发光本体 + 等级（文字或小方块）」全部包住，
-  但不要包进相邻的另一件；运输舰「运载的文物」卡片里没有神器名，box 也不用包含它。
+逐件给出：
+- type：只能是 运输舰 / 采矿 / 武器 / 护盾 / 战斗 / 无人机（按颜色：黄=运输舰，紫=采矿，红=武器，蓝=护盾，绿=战斗，橙=无人机）
+- name：神器名字（如「运输舰神器」），看不清填 null
+- level：等级整数（「等级12」或底部薄荷色小方块里的数字），看不清填 null
+- tons：吨数整数（「50吨」里的 50），没有就 null
+- bonus：加成数字（「+360%%」填 360），看不清填 null
+- bp：量子图纸的 key，必须从下面清单里选；没有图纸方块或看不清一律 null
+- box：这件卡片的外接矩形，给归一化整数 [x0,y0,x1,y1]（左上角 [0,0]，右下角 [1000,1000]）。
+  要包住「加成药丸 + 图纸方块 + 发光本体 + 等级」，但不要包进相邻的另一件；「运载的文物」卡片里没有神器名，框里不用管它。
 
 量子图纸清单（key = 中文名）：
 %s
 
-只输出 JSON，不要任何解释，格式：
-{"items":[{"type":"无人机","name":"无人机神器","level":12,"tons":50,"bonus":360,"bp":null,"boxes":[120,680,320,880]}]}
-图里没有任何神器就返回 {"items":[]}。"""
+只输出 JSON，不要解释：
+{"items":[{"type":"无人机","name":"无人机神器","level":12,"tons":50,"bonus":360,"bp":null,"box":[120,680,320,880]}]}
+没有神器就输出 {"items":[]}。"""
 
 
-def _call_model(b64, keys_hint):
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
-    if not token:
-        raise RuntimeError("缺少 GITHUB_TOKEN")
-    body = {
-        "model": MODEL,
-        "temperature": 0,
-        "max_tokens": 1500,
-        "messages": [{
-            "role": "user",
-            "content": [
-                {"type": "text", "text": PROMPT % keys_hint},
-                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + b64}},
-            ],
-        }],
-    }
-    req = urllib.request.Request(ENDPOINT, data=json.dumps(body).encode(), method="POST",
-                                 headers={"Authorization": "Bearer " + token,
-                                          "Content-Type": "application/json",
-                                          "Accept": "application/json",
-                                          "X-GitHub-Api-Version": "2023-06-01"})
-    try:
-        with urllib.request.urlopen(req, timeout=180) as r:
-            code = r.status
-            body_raw = r.read().decode("utf-8", "replace")
-    except urllib.error.HTTPError as e:
-        code = e.code
-        body_raw = e.read().decode("utf-8", "replace")
-    print("models 响应 http=%s len=%s head=%s" % (code, len(body_raw), body_raw[:260].replace("\n", " ")))
-    payload = json.loads(body_raw)
-    txt = payload["choices"][0]["message"]["content"]
-    if isinstance(txt, list):      # 少数模型返回分段内容
-        txt = "".join(p.get("text", "") for p in txt if isinstance(p, dict))
-    txt = str(txt).strip()
+# ---------- 视觉模型 ----------
+_MODEL = None
+_PROC = None
+
+
+def _load_model():
+    global _MODEL, _PROC
+    if _MODEL is not None:
+        return _MODEL, _PROC
+    import torch
+    from transformers import AutoProcessor, AutoModelForImageTextToText
+    t0 = time.time()
+    _PROC = AutoProcessor.from_pretrained(MODEL_ID)
+    _MODEL = AutoModelForImageTextToText.from_pretrained(MODEL_ID, torch_dtype=torch.float32)
+    _MODEL.eval()
+    print("模型载入 %.0fs" % (time.time() - t0))
+    return _MODEL, _PROC
+
+
+def _json_from_text(txt):
     lo, hi = txt.find("{"), txt.rfind("}")
     if lo >= 0 and hi > lo:
         txt = txt[lo:hi + 1]
-    return json.loads(txt)
+    txt = re.sub(r",\s*([}\]])", r"\1", txt)
+    try:
+        return json.loads(txt)
+    except Exception:
+        pass
+    loose = []
+    for m in re.finditer(r"\{[^{}]*\}", txt):
+        try:
+            loose.append(json.loads(m.group(0)))
+        except Exception:
+            continue
+    return {"items": loose}
+
+
+def analyze(path, keys_hint):
+    import torch
+    model, proc = _load_model()
+    img = Image.open(path).convert("RGB")
+    w, h = img.size
+    if max(w, h) > MAX_SIDE:
+        s = MAX_SIDE / float(max(w, h))
+        img = img.resize((int(w * s), int(h * s)), Image.LANCZOS)
+    msgs = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": PROMPT % keys_hint}]}]
+    text = proc.apply_chat_template(msgs, add_generation_prompt=True)
+    inputs = proc(text=text, images=[img], return_tensors="pt")
+    t0 = time.time()
+    with torch.no_grad():
+        out = model.generate(**inputs, max_new_tokens=400, do_sample=False, repetition_penalty=1.05)
+    gen = out[0][inputs["input_ids"].shape[1]:]
+    txt = proc.decode(gen, skip_special_tokens=True).strip()
+    print("推理 %.0fs 原文: %s" % (time.time() - t0, txt[:600].replace("\n", " ")))
+    data = _json_from_text(txt)
+    items = data.get("items") if isinstance(data, dict) else None
+    if isinstance(items, dict):
+        items = [items]
+    return items or []
 
 
 # ---------- 图像：找本体 / 站等级方块 / 裁预览 ----------
@@ -241,7 +245,7 @@ def to_int(v):
     try:
         if v is None or v == "":
             return None
-        return int(round(float(v)))
+        return int(round(float(str(v).replace("%", "").strip())))
     except Exception:
         return None
 
@@ -267,14 +271,11 @@ def main():
         batch = "__".join(fn.rsplit("_", 1)[0].split("__")[:2])
         res = batches.setdefault(batch, dict(player=player, items=[], images=0, t=int(time.time())))
         res["images"] += 1
-        b64, _ = _b64_jpeg(path)
         raw = []
-        if b64:
-            try:
-                data = _call_model(b64, keys_hint)
-                raw = data.get("items") or []
-            except Exception as e:
-                print("视觉模型失败", fn, e)
+        try:
+            raw = analyze(path, keys_hint)
+        except Exception as e:
+            print("视觉模型失败", fn, type(e).__name__, e)
         print("识别", fn, len(raw), "件")
         keys = {b["key"] for b in BP_LIST}
         for it in raw:
@@ -284,7 +285,7 @@ def main():
             tkey = norm_type(it.get("type")) or norm_type(nm)
             lvl = to_int(it.get("level"))
             bns = to_int(it.get("bonus"))
-            plate, cbox = crop_card(img, it.get("boxes"))
+            plate, cbox = crop_card(img, it.get("box") or it.get("boxes"))
             if plate is None:
                 continue
             icon = None
