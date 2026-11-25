@@ -87,7 +87,9 @@
       "type": "武器",
       "tone": "暗",
       "img": "img/bp/launcher_dark.png",
-      "alts": []
+      "alts": [
+        "img/bp/launcher_dark_dim.png"
+      ]
     },
     {
       "key": "launcher_light",
@@ -95,7 +97,9 @@
       "type": "武器",
       "tone": "光",
       "img": "img/bp/launcher_light.png",
-      "alts": []
+      "alts": [
+        "img/bp/launcher_light_dim.png"
+      ]
     }
   ]
 }
