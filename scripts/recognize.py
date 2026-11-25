@@ -32,6 +32,28 @@ TYPE_BY_HUE = [("trade", 34), ("mining", 138), ("weapon", 176), ("shield", 104),
 
 _DIG = {}
 _BP = []
+_CAT = []
+CAT_DIR = os.path.join(IMG, "cat")
+CAT_TYPE = {"运输舰": "trade", "采矿": "mining", "战斗": "support", "武器": "weapon", "护盾": "shield", "无人机": "drone"}
+
+
+def load_catalog():
+    """图鉴里的神器图标当模板：文件名 l<等级>_<类型>.jpg，判类型只认图案。"""
+    _CAT.clear()
+    if not os.path.isdir(CAT_DIR):
+        return _CAT
+    for fn in sorted(os.listdir(CAT_DIR)):
+        base = os.path.splitext(fn)[0]
+        if "_" not in base:
+            continue
+        lv, name = base.split("_", 1)
+        if name not in CAT_TYPE:
+            continue
+        g = cv2.imread(os.path.join(CAT_DIR, fn), 0)
+        if g is None:
+            continue
+        _CAT.append(dict(t=CAT_TYPE[name], lv=int(lv[1:]), v=cv2.resize(g, (120, 120), interpolation=cv2.INTER_AREA).astype(np.float32)))
+    return _CAT
 
 
 def norm_tile(g, size=32):
@@ -70,6 +92,99 @@ def load_blueprints():
             _BP.append(dict(key=b["key"], name=b.get("name", ""), v=norm_tile(g), dim=(path != b.get("img"))))
         print("图纸", b["key"], "载入")
     return _BP
+
+
+def line_mask(bgr):
+    """取一行亮字：V 通道 Otsu 二值化，再丢掉贴着边框的成分（药丸/方块的框线）。"""
+    if bgr is None or bgr.size == 0:
+        return None
+    V = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)[:, :, 2]
+    t, _ = cv2.threshold(V, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    mk = (V > min(t, 225)).astype(np.uint8) * 255
+    H, W = mk.shape
+    n, lab, st, _ = cv2.connectedComponentsWithStats(mk, 8)
+    keep = np.zeros_like(mk)
+    for i in range(1, n):
+        x, y, w, h, a = st[i]
+        if a < 30:
+            continue
+        if x <= 3 or y <= 3 or x + w >= W - 3 or y + h >= H - 3:
+            continue
+        if h >= 0.85 * H or w >= 0.92 * W:
+            continue
+        keep[lab == i] = 255
+    return keep
+
+
+def tight(mk):
+    ys, xs = np.where(mk > 0)
+    if len(xs) == 0:
+        return None
+    return mk[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+
+
+def scan_scores(strip):
+    """每个模板在整条字带里逐列的匹配分（模板 20x26，返回 1D 数组）。"""
+    g = strip.astype(np.float32)
+    H, W = g.shape
+    out = {}
+    for ch, t in _DIG.items():
+        tt = np.ascontiguousarray(t, dtype=np.float32)
+        if tt.shape[0] > H:
+            tt = cv2.resize(tt, (tt.shape[1], H))
+        if tt.shape[1] > W:
+            continue
+        r = cv2.matchTemplate(g, tt, cv2.TM_CCOEFF_NORMED)
+        out[ch] = r.max(axis=0)
+    return out
+
+
+def read_pill_str(strip):
+    """药丸固定格式 [+][d][d][d][%]：用列得分做动态规划，不靠切字。"""
+    if strip is None or strip.size == 0:
+        return "", 0.0
+    strip = cv2.resize(strip, (max(strip.shape[1], 12), 26), interpolation=cv2.INTER_NEAREST) if strip.shape[0] != 26 else strip
+    sc = scan_scores(strip)
+    if not sc:
+        return "", 0.0
+    digits = [c for c in sc if c.isdigit()]
+    stages = [["+"] if "+" in sc else [], digits, digits, digits, ["%"] if "%" in sc else []]
+    stages = [st for st in stages if st]
+    if len(stages) < 3:
+        return "", 0.0
+    W = len(next(iter(sc.values())))
+    NEG = -9.0
+    dp = [[NEG] * W for _ in stages]
+    bk = [[None] * W for _ in stages]
+    for ch in stages[0]:
+        arr = sc[ch]
+        for x in range(W):
+            if arr[x] > dp[0][x]:
+                dp[0][x], bk[0][x] = float(arr[x]), ch
+    step_min, step_max = 10, 44
+    for k in range(1, len(stages)):
+        for x in range(W):
+            best, bch, bx = NEG, None, None
+            for nx in range(max(0, x - step_max), max(0, x - step_min) + 1):
+                if dp[k - 1][nx] == NEG:
+                    continue
+                for ch in stages[k]:
+                    s = dp[k - 1][nx] + float(sc[ch][x]) - 0.02 * abs((x - nx) - 20)
+                    if s > best:
+                        best, bch, bx = s, ch, nx
+            dp[k][x], bk[k][x] = best, (bch, bx)
+    end = max(range(W), key=lambda x: dp[-1][x])
+    out, x, k = [], end, len(stages) - 1
+    while k > 0:
+        cell = bk[k][x]
+        if not cell:
+            return "", NEG
+        ch, prev = cell
+        out.append(ch)
+        x, k = prev, k - 1
+    out.append(str(bk[0][x] or ""))
+    out = "".join(reversed([c for c in out if c]))
+    return out, dp[-1][end]
 
 
 def masks(img):
@@ -163,20 +278,30 @@ def dedupe(boxes, tol=0.45):
 
 
 def find_pills(img):
-    mint, _ = masks(img)
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    H, S, V = hsv[:, :, 0].astype(int), hsv[:, :, 1].astype(int), hsv[:, :, 2].astype(int)
+    m = (((H >= 55) & (H <= 115) & (S >= 35) & (V >= 175)).astype(np.uint8)) * 255
+    m = cv2.dilate(m, np.ones((3, 15), np.uint8), iterations=1)
     out = []
-    for b in dedupe(boxes_of(mint, 55, 26, 220, 52)):
-        s = read_line(mint[b[1]:b[1] + b[3], b[0]:b[0] + b[2]])
-        if "%" not in s:
+    for c in cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]:
+        x, y, w, h = cv2.boundingRect(c)
+        if not (45 <= w <= 260 and 16 <= h <= 90) or w / float(h) < 2.0:
             continue
-        out.append(dict(box=(max(0, b[0] - 9), max(0, b[1] - 6), b[2] + 18, b[3] + 12), num=num_of(s)))
+        mk = line_mask(img[y:y + h, x:x + w])
+        if mk is None or mk.sum() == 0:
+            continue
+        tb = tight(mk)
+        s, sc2 = read_pill_str(tb)
+        if "%" not in s or not any(c.isdigit() for c in s):
+            continue
+        out.append(dict(box=(x, y, w, h), num=num_of(s), raw=s, score=round(float(sc2), 3)))
     return out
 
 
 def find_bodies(img):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     S, V = hsv[:, :, 1].astype(int), hsv[:, :, 2].astype(int)
-    m = (((S > 90) & (V > 85)).astype(np.uint8)) * 255
+    m = (((S > 40) & (V > 105)).astype(np.uint8)) * 255
     m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
     n, _, st, _ = cv2.connectedComponentsWithStats(m, 8)
     out = []
@@ -193,6 +318,24 @@ def find_bodies(img):
 
 
 def type_of(img, body):
+    if _CAT:
+        x, y, w, h = body
+        side = int(max(w, h) * 1.25)
+        cx, cy = x + w // 2, y + h // 2
+        H, W = img.shape[:2]
+        x0, y0 = max(0, cx - side // 2), max(0, cy - side // 2)
+        patch = img[y0:min(H, y0 + side), x0:min(W, x0 + side)]
+        if patch.size:
+            g = cv2.resize(cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY), (120, 120), interpolation=cv2.INTER_AREA).astype(np.float32)
+            best, second = ("", 0.0), 0.0
+            for t in _CAT:
+                sc = float(cv2.matchTemplate(g, t["v"], cv2.TM_CCOEFF_NORMED)[0, 0])
+                if sc > best[1]:
+                    second, best = best[1], (t["t"], sc)
+                elif sc > second:
+                    second = sc
+            if best[1] >= 0.45:
+                return best[0]
     x, y, w, h = body
     hsv = cv2.cvtColor(img[y:y + h, x:x + w], cv2.COLOR_BGR2HSV)
     S, V = hsv[:, :, 1].astype(int), hsv[:, :, 2].astype(int)
