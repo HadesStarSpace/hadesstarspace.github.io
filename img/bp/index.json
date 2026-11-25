@@ -100,6 +100,22 @@
       "alts": [
         "img/bp/launcher_light_dim.png"
       ]
+    },
+    {
+      "key": "omega_dark",
+      "name": "暗物质奥米加护盾",
+      "type": "护盾",
+      "tone": "暗",
+      "img": "img/bp/omega_dark.png",
+      "alts": []
+    },
+    {
+      "key": "omega_light",
+      "name": "光物质奥米加护盾",
+      "type": "护盾",
+      "tone": "光",
+      "img": "img/bp/omega_light.png",
+      "alts": []
     }
   ]
 }
