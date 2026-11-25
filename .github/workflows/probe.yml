@@ -12,5 +12,5 @@ jobs:
         with:
           python-version: '3.12'
       - name: 装依赖
-        run: python3 -m pip install -q --no-input torch --index-url https://download.pytorch.org/whl/cpu && python3 -m pip install -q --no-input transformers pillow accelerate
+        run: python3 -m pip install -q --no-input torch --index-url https://download.pytorch.org/whl/cpu && python3 -m pip install -q --no-input transformers pillow accelerate torchvision
       - run: python3 scripts/probe.py
