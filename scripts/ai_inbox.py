@@ -10,6 +10,7 @@ import json
 import os
 import sys
 import time
+import urllib.error
 import urllib.request
 
 import cv2
@@ -102,9 +103,17 @@ def _call_model(b64, keys_hint):
     req = urllib.request.Request(ENDPOINT, data=json.dumps(body).encode(), method="POST",
                                  headers={"Authorization": "Bearer " + token,
                                           "Content-Type": "application/json",
-                                          "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=180) as r:
-        payload = json.loads(r.read().decode())
+                                          "Accept": "application/json",
+                                          "X-GitHub-Api-Version": "2023-06-01"})
+    try:
+        with urllib.request.urlopen(req, timeout=180) as r:
+            code = r.status
+            body_raw = r.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        code = e.code
+        body_raw = e.read().decode("utf-8", "replace")
+    print("models 响应 http=%s len=%s head=%s" % (code, len(body_raw), body_raw[:260].replace("\n", " ")))
+    payload = json.loads(body_raw)
     txt = payload["choices"][0]["message"]["content"]
     if isinstance(txt, list):      # 少数模型返回分段内容
         txt = "".join(p.get("text", "") for p in txt if isinstance(p, dict))
