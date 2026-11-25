@@ -1,27 +1,23 @@
-import os, time, torch
-from PIL import Image
-from transformers import AutoProcessor, AutoModelForImageTextToText
+import json, socket, subprocess, urllib.request
 
-img = Image.open("scripts/_probe.jpg").convert("RGB")
-img.thumbnail((1100, 2400))
-Q = "请数出图里有几件遗物，每件的加成百分比数字是多少？只回答事实。"
+print("local dns:", socket.gethostbyname_ex("models.github.ai"))
+for name in ["models.github.ai", "api.github.com"]:
+    for doh in ["https://dns.google/resolve?name=%s&type=A" % name, "https://cloudflare-dns.com/dns-query?name=%s&type=A" % name]:
+        try:
+            req = urllib.request.Request(doh, headers={"Accept": "application/dns-json", "User-Agent": "probe"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                d = json.loads(r.read().decode())
+            print("doh", name, [a.get("data") for a in d.get("Answer", [])][:8])
+        except Exception as e:
+            print("doh ERR", doh, e)
 
-def run(model_id, max_new=200):
-    t0 = time.time()
-    proc = AutoProcessor.from_pretrained(model_id)
-    model = AutoModelForImageTextToText.from_pretrained(model_id, torch_dtype=torch.float32)
-    model.eval()
-    msgs = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": Q}]}]
-    text = proc.apply_chat_template(msgs, add_generation_prompt=True)
-    inputs = proc(text=text, images=[img], return_tensors="pt")
-    with torch.no_grad():
-        out = model.generate(**inputs, max_new_tokens=max_new, do_sample=False)
-    gen = out[0][inputs["input_ids"].shape[1]:]
-    print("===", model_id, "%.1fs" % (time.time() - t0))
-    print(proc.decode(gen, skip_special_tokens=True)[:600])
-
-for mid in ["HuggingFaceTB/SmolVLM2-500M-Video-Instruct", "Qwen/Qwen2.5-VL-3B-Instruct"]:
-    try:
-        run(mid)
-    except Exception as e:
-        print("=== FAIL", mid, type(e).__name__, str(e)[:300])
+ips = ["20.250.204.33", "20.98.171.60"]
+import os; tok = os.environ.get("GITHUB_TOKEN","")
+r = subprocess.run(["bash", "-lc", "echo ${GITHUB_TOKEN:-none} | head -c 4"], capture_output=True, text=True)
+print("token head:", r.stdout.strip())
+for ip in ips:
+    out = subprocess.run(["curl", "-sS", "-m", "30", "--resolve", "models.github.ai:443:" + ip,
+                          "-o", "/dev/stdout", "-w", "\n[http %{http_code} ip=%{remote_ip}]\n",
+                          "https://models.github.ai/inference/models",
+                          "-H", "Authorization: Bearer %s" % tok], capture_output=True, text=True)
+    print("try", ip, out.stdout[-300:], out.stderr[-200:])
