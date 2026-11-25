@@ -1,5 +1,5 @@
 import base64, json, urllib.request, urllib.error
-b64 = open("/tmp/ship_b64.txt").read()
+b64 = open("scripts/_probe_b64.txt").read()
 def post(url, body, timeout=120):
     req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST", headers={"Content-Type":"application/json"})
     try:
