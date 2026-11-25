@@ -186,10 +186,16 @@ def parse_items(path, img):
             if m:
                 lvl = int(m.group(1))
         bns = read_bonus(img, bn) if bn else None
+        tn = None
+        for l in lines:
+            if "吨" in l["t"] and nm["cy"] < l["cy"] < nm["cy"] + 6 * nm["h"] \
+                    and l["x0"] <= nm["x1"] + 2 * nm["h"]:
+                if tn is None or l["cy"] < tn["cy"]:
+                    tn = l
         it = dict(type=tkey, level=lvl, bonus=bns, name_y=nm["cy"], name_h=nm["h"],
                   text_x=nm["x1"], pill=bn,
                   tboxes=[(l["x0"], l["cy"] - l["h"] / 2, l["x1"], l["cy"] + l["h"] / 2)
-                          for l in (nm, lv) if l])
+                          for l in (nm, lv, tn) if l])
         prev_y = (items[-1]["band_mid"] if items else 0)
         it["band_mid"] = nm["cy"] + nm["h"] * 1.3
         it["band"] = (int(max(0, prev_y)), int(min(H, it["band_mid"] + nm["h"] * 0.9)))
@@ -586,6 +592,9 @@ def artifact_crop(img, it, layout=""):
     return cv2.resize(out, (256, 256), interpolation=cv2.INTER_AREA)
 
 
+_LAST_BOX = None
+
+
 def item_card(img, it, layout, cellw=None, peers=None):
     """核对用预览：这一件的完整卡片——神器本体 + 加成药丸 + 量子图纸小方块 + 等级，
     横向裁到相邻那一件的中间线为止，保证一张图里只有一件神器。"""
@@ -708,6 +717,8 @@ def item_card(img, it, layout, cellw=None, peers=None):
         nx1 = min(max(t[2] for t in tb) + 0.4 * w, lim[1])
         x0 = int(min(x0, nx0)); y0 = int(min(y0, ny0))
         x1 = int(max(x1, nx1)); y1 = int(max(y1, ny1))
+    global _LAST_BOX
+    _LAST_BOX = (int(x0), int(y0), int(x1), int(y1))
     return img[y0:y1, x0:x1]
 
 
@@ -1375,7 +1386,22 @@ def main():
             icon = loc.get("icon") if loc else None
             icon = square_center(icon) if icon is not None else None
             sig = grad_sig(icon) if icon is not None else ""
+            def _bx(d):
+                if not d:
+                    return None
+                y0 = d.get("y0", d["cy"] - d["h"] / 2)
+                y1 = d.get("y1", d["cy"] + d["h"] / 2)
+                return [int(d["x0"]), int(y0), int(d["x1"]), int(y1)]
+            blob = artifact_blob(img, it.get("pill"))
+            coords = {
+                "pill": _bx(it.get("pill")),
+                "text": [[int(v) for v in b] for b in (it.get("tboxes") or [])],
+                "icon": [int(blob[0]), int(blob[1]), int(blob[0] + blob[2]), int(blob[1] + blob[3])]
+                        if blob else None,
+                "card": list(_LAST_BOX) if _LAST_BOX else None,
+            }
             res["items"].append({
+                "coords": coords,
                 "type_key": tkey,
                 "level": it.get("level"), "bonus": it.get("bonus"),
                 "side": loc.get("side") if loc else "暗",
