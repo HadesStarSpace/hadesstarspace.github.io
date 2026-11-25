@@ -720,6 +720,16 @@ function renderResult() {
     pendingSlots.forEach(x => { if (!x.type_key) x.type_key = v; });
     renderResult();
   };
+  /* 预览图偶尔 404：识别结果先落地、图片随 Pages 部署慢一拍，失败就带时间戳重试几次，别留空框 */
+  $('#resGrid').querySelectorAll('.plate').forEach(img => {
+    img.onerror = () => {
+      const n = +img.dataset.retry || 0;
+      img.dataset.retry = n + 1;
+      if (n >= 4) { img.after(Object.assign(document.createElement('div'), { className: 'empty', textContent: '预览图加载失败' })); return; }
+      const base = img.src.split('?')[0];
+      setTimeout(() => { img.src = base + '?r=' + Date.now(); }, 1200 * (n + 1));
+    };
+  });
   $('#resGrid').querySelectorAll('.bpickwrap').forEach(box => {
     const i = +box.dataset.i;
     bindBpPick(box.querySelector('.bpick'), v => { pendingSlots[i].bp = v; });
