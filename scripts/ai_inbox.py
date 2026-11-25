@@ -1184,13 +1184,14 @@ def bp_scan(img, pill, layout="", type_key="", side=""):
     blob = artifact_blob(img, pill)
     if blob:
         bx, by, bw, bh = blob
-        core_x1 = bx + bw; core_y1 = by + bh
         for k, (wx, wy, bs) in list(wins.items()):
-            ccx = bx + bw / 2.0; ccy = by + bh / 2.0
-            half = min(bw, bh) * 0.34
-            ox = max(0, min(wx + bs, ccx + half) - max(wx, ccx - half))
-            oy = max(0, min(wy + bs, ccy + half) - max(wy, ccy - half))
-            if bs * bs and (ox * oy) / float(bs * bs) > 0.7:
+            sub = img[max(0, wy):wy + bs, max(0, wx):wx + bs]
+            if sub.size == 0:
+                continue
+            # 空面板也会被归一化硬凑出 0.7 分：窗口里没「墨」（既无亮暗图案，也没起伏）就直接作废
+            gg = cv2.cvtColor(sub, cv2.COLOR_BGR2GRAY).astype(np.int16)
+            m = float(np.median(gg))
+            if float(gg.std()) < 8 or float((np.abs(gg - m) > 25).mean()) < 0.03:
                 agg.pop(k, None); wins.pop(k, None)
     shape = _shape_scores(img, wins)
     if not agg and not old:
