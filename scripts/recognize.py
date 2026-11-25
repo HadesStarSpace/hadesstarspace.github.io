@@ -207,6 +207,20 @@ def split_glyphs(m):
             run = None
     if run is not None and len(cols) - run >= 3:
         spans.append((run, len(cols)))
+    if spans:
+        ws = sorted(b - a for a, b in spans)
+        med = ws[len(ws) // 2]
+        fixed = []
+        for a, b in spans:
+            w = b - a
+            if med * 1.45 <= w <= med * 2.3:
+                col = (m[:, a:b] > 0).sum(0)
+                mid0, mid1 = int(w * 0.35), int(w * 0.65)
+                cut = a + mid0 + int(np.argmin(col[mid0:mid1]))
+                fixed += [(a, cut), (cut, b)]
+            else:
+                fixed.append((a, b))
+        spans = fixed
     out = []
     for a, b in spans:
         sub = m[:, a:b]
@@ -220,7 +234,7 @@ def split_glyphs(m):
     return out
 
 
-def norm_glyph(g, W=20, H=26):
+def norm_glyph(g, W=24, H=32):
     h, w = g.shape
     sc = min(W / float(w), H / float(h))
     nw, nh = max(1, int(round(w * sc))), max(1, int(round(h * sc)))
@@ -237,8 +251,12 @@ def read_glyph(g):
     g = norm_glyph(g).astype(np.float32)
     best, second = ("", 0.0), 0.0
     for ch, t in _DIG.items():
-        tt = t.astype(np.float32)
-        sc = float(cv2.matchTemplate(g, tt, cv2.TM_CCOEFF_NORMED)[0, 0])
+        tt = cv2.resize(t, (g.shape[1], g.shape[0], ), interpolation=cv2.INTER_AREA).astype(np.float32)
+        sc = 0.0
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                gs = np.roll(np.roll(g, dy, 0), dx, 1)
+                sc = max(sc, float(cv2.matchTemplate(gs, tt, cv2.TM_CCOEFF_NORMED)[0, 0]))
         if sc > best[1]:
             second = best[1]
             best = (ch, sc)
