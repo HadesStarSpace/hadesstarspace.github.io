@@ -1,14 +1,15 @@
-import json, urllib.request
-def get(url):
+import traceback
+try:
+    from gradio_client import Client, handle_file
+except Exception as e:
+    print("no gradio_client", e); raise SystemExit
+for sid in ["HuggingFaceTB/SmolVLM", "HuggingFaceTB/SmolVLM2", "Qwen/Qwen2.5-VL-32B-Instruct"]:
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent":"probe"}), timeout=30) as r:
-            return r.status, r.read().decode("utf-8","replace")
+        c = Client(sid, verbose=False)
+        api = c.view_api(return_format="dict", print_info=False)
+        print("==", sid, "OK named_endpoints:", list(api.get("named_endpoints", {}))[:6],
+              "unnamed:", len(api.get("unnamed_endpoints", {})))
+        for name, ep in list(api.get("named_endpoints", {}).items())[:3]:
+            print("   ", name, [p.get("parameter_name") for p in ep.get("parameters", [])])
     except Exception as e:
-        return "ERR", str(e)[:150]
-for q in ["Qwen2.5-VL", "SmolVLM", "vision language model", "InternVL"]:
-    st, body = get("https://huggingface.co/api/spaces?search=%s&sort=likes&direction=-1&limit=8" % q.replace(" ", "%20"))
-    print("==", q, st)
-    if st == 200:
-        for s in json.loads(body)[:8]:
-            print("   ", s.get("id"), s.get("sdk"), s.get("likes"), s.get("runtime", {}).get("stage"))
-print("hf.space reach:", get("https://huggingface.co/api/spaces/HuggingFaceTB/SmolVLM-256M-Instruct-Demo")[0])
+        print("==", sid, "FAIL", type(e).__name__, str(e)[:200])
