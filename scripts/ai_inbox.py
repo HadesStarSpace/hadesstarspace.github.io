@@ -663,6 +663,7 @@ def item_card(img, it, layout, cellw=None, peers=None):
                 x1 = min(x1, (min(qtx) - 0.2 * h) if qtx else (qp["x0"] - 1.4 * w))
     x0 = max(0, int(x0)); x1 = min(img.shape[1], int(x1))
     y0 = max(0, int(y0)); y1 = min(img.shape[0], int(y1))
+    lim = (x0, x1, y0, y1)   # 生长收缩前的框：收缩后要能把等级/名字文字补回来
     if x1 - x0 < 20 or y1 - y0 < 20:
         return None
     # 以药丸为种子往外长到内容边缘：不切半截文字，也不留大片空白
@@ -699,6 +700,14 @@ def item_card(img, it, layout, cellw=None, peers=None):
                 else:
                     y1 = min(y1, int(p.get("y1", p["cy"] + h / 2) + 0.5 * h))
             y1 = max(y1, int(p.get("y1", p["cy"]) + 0.35 * h))
+    tb = it.get("tboxes") or []
+    if layout != "grid" and tb:
+        nx0 = max(min(t[0] for t in tb) - 0.2 * h, lim[0])
+        ny0 = max(min(t[1] for t in tb) - 0.3 * h, lim[2])
+        ny1 = min(max(t[3] for t in tb) + 0.3 * h, lim[3])
+        nx1 = min(max(t[2] for t in tb) + 0.4 * w, lim[1])
+        x0 = int(min(x0, nx0)); y0 = int(min(y0, ny0))
+        x1 = int(max(x1, nx1)); y1 = int(max(y1, ny1))
     return img[y0:y1, x0:x1]
 
 
