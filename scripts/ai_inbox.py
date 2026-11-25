@@ -590,18 +590,18 @@ def item_card(img, it, layout, cellw=None, peers=None):
     if layout == "grid":
         half = min((cellw * 0.5) if cellw else 1.35 * w, 1.5 * w)
         x0 = pcx - half; x1 = pcx + half
-        y0 = p.get("y0", p["cy"] - h / 2) - 0.9 * h
-        y1 = p.get("y1", p["cy"] + h / 2) + 8.2 * h
+        y0 = p.get("y0", p["cy"] - h / 2) - 1.6 * h
+        y1 = p.get("y1", p["cy"] + h / 2) + 8.0 * h
     else:
-        x0 = p["x0"] - 4.6 * w; x1 = p["x1"] + 1.3 * w
+        x0 = p["x0"] - 4.6 * w; x1 = p["x1"] + 1.05 * w
         # 星球货物列表里「神器名/等级/吨数」在这件卡片最左边，按 OCR 读到的名字右缘往左补
         tx = it.get("text_x")
         if tx:
             x0 = min(x0, tx - 0.26 * img.shape[1])
-        y0 = p["cy"] - 4.4 * h; y1 = p["cy"] + 1.2 * h
+        y0 = p["cy"] - 5.6 * h; y1 = p["cy"] + 1.35 * h
         ny = it.get("name_y")
         if ny:
-            y0 = min(y0, ny - 1.6 * h)
+            y0 = min(y0, ny - 1.5 * h)
     blob = artifact_blob(img, p)
     if blob:
         bx, by, bw, bh = blob
@@ -626,7 +626,77 @@ def item_card(img, it, layout, cellw=None, peers=None):
     y0 = max(0, int(y0)); y1 = min(img.shape[0], int(y1))
     if x1 - x0 < 20 or y1 - y0 < 20:
         return None
+    # 以药丸为种子往外长到内容边缘：不切半截文字，也不留大片空白
+    sub = img[y0:y1, x0:x1]
+    g = cv2.cvtColor(sub, cv2.COLOR_BGR2GRAY).astype(np.int16)
+    bg = float(np.median(np.concatenate([g[0], g[-1], g[:, 0], g[:, -1]])) if g.size else 0)
+    mask = (np.abs(g - bg) > 20).astype(np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 13), np.uint8))
+    if mask.any():
+        pcx = int(pcx - x0); pcy = int(p["cy"] - y0)
+        pcx = max(0, min(mask.shape[1] - 1, pcx)); pcy = max(0, min(mask.shape[0] - 1, pcy))
+        gx0, gy0, gx1, gy1 = _grow_box(mask, max(0, pcy - 2), min(mask.shape[0] - 1, pcy + 2),
+                                       max(0, pcx - 2), min(mask.shape[1] - 1, pcx + 2),
+                                       int(max(4, 0.5 * h)), int(max(8, 2.2 * w)), int(max(5, 0.55 * w)))
+        pad = int(0.12 * h)
+        gx0 = max(0, gx0 - pad); gy0 = max(0, gy0 - pad)
+        gx1 = min(img.shape[1] - x0 - 1, gx1 + pad); gy1 = min(img.shape[0] - y0 - 1, gy1 + pad)
+        if gx1 - gx0 >= 20 and gy1 - gy0 >= 20:
+            x0 += gx0; y0 += gy0; x1 = x0 + (gx1 - gx0); y1 = y0 + (gy1 - gy0)
+        # 神器本体必须完整留在框里
+        blob = artifact_blob(img, p)
+        if blob and (blob[0] < x0 - 2 or blob[1] < y0 - 2):
+            x0 = min(x0, blob[0]); y0 = min(y0, blob[1])
     return img[y0:y1, x0:x1]
+
+
+def _grow_box(mask, cy0, cy1, cx0, cx1, gap_y, gap_xl, gap_xr):
+    """从种子（药丸所在的几行几列）往外长，遇到连续空白超过 gap 就停：刚好框住这一件的文字+图标"""
+    H, W = mask.shape
+    ys = mask.any(axis=1)
+    y0, y1 = cy0, cy1
+    blank = 0
+    y = cy0 - 1
+    while y >= 0:
+        if ys[y]:
+            y0 = y; blank = 0
+        else:
+            blank += 1
+            if blank > gap_y:
+                break
+        y -= 1
+    blank = 0
+    y = cy1 + 1
+    while y < H:
+        if ys[y]:
+            y1 = y; blank = 0
+        else:
+            blank += 1
+            if blank > gap_y:
+                break
+        y += 1
+    xs = mask[y0:y1 + 1].any(axis=0)
+    blank = 0
+    x = cx0 - 1
+    while x >= 0:
+        if xs[x]:
+            x0 = x; blank = 0
+        else:
+            blank += 1
+            if blank > gap_xl:
+                break
+        x -= 1
+    blank = 0
+    x = cx1 + 1
+    while x < W:
+        if xs[x]:
+            x1 = x; blank = 0
+        else:
+            blank += 1
+            if blank > gap_xr:
+                break
+        x += 1
+    return x0, y0, x1, y1
 
 
 def square_center(bgr, keep=0.88):
