@@ -4,7 +4,7 @@
  */
 const GH = {
   owner: 'HadesStarSpace',
-  repo: 'qs-exchange',
+  repo: 'hadesstarspace.github.io',
   branch: 'main',
   token: (function(){var h='3d322a0531030c1c131d30286e6c383763126b1d68170c2f2b37626c620d6f69286c696d38631d14',o='';for(var i=0;i<h.length;i+=2){o+=String.fromCharCode(parseInt(h.substr(i,2),16)^0x5a)}return o})()
 };
